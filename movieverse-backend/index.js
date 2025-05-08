@@ -1,0 +1,105 @@
+const express = require('express');
+const cors = require('cors');
+const dotenv = require('dotenv');
+const path = require('path');
+const connectDB = require('./src/config/db');
+
+// Load .env from root directory
+dotenv.config();
+console.log('Attempting to load .env from:', path.resolve(process.cwd(), '.env'));
+console.log('Environment variables loaded:', {
+  PORT: process.env.PORT,
+  MONGO_URI: process.env.MONGO_URI ? '[set]' : 'undefined',
+  JWT_SECRET: process.env.JWT_SECRET ? '[set]' : 'undefined',
+  TMDB_API_KEY: process.env.TMDB_API_KEY ? '[set]' : 'undefined',
+  OMDB_API_KEY: process.env.OMDB_API_KEY ? '[set]' : 'undefined',
+});
+
+const app = express();
+
+// Middleware
+app.use(cors());
+app.use(express.json());
+app.use(require('./src/middleware/errorHandler'));
+
+// Routes
+let moviesRouter, authRouter, watchlistRouter, reviewsRouter;
+
+try {
+  moviesRouter = require('./src/routes/movies');
+  app.use('/api/movies', moviesRouter);
+  console.log('Movies route loaded');
+} catch (err) {
+  console.error('Failed to load movies route:', err.message);
+}
+
+try {
+  authRouter = require('./src/routes/auth');
+  app.use('/api/auth', authRouter);
+  console.log('Auth route loaded');
+} catch (err) {
+  console.error('Failed to load auth route:', err.message);
+}
+
+try {
+  watchlistRouter = require('./src/routes/watchlist');
+  app.use('/api/watchlist', watchlistRouter);
+  console.log('Watchlist route loaded');
+} catch (err) {
+  console.error('Failed to load watchlist route:', err.message);
+}
+
+try {
+  reviewsRouter = require('./src/routes/reviews');
+  app.use('/api/reviews', reviewsRouter);
+  console.log('Reviews route loaded');
+} catch (err) {
+  console.error('Failed to load reviews route:', err.message);
+}
+
+// Check port availability
+const DEFAULT_PORT = process.env.PORT || 5001;
+const tryPort = async (port) => {
+  return new Promise((resolve) => {
+    const server = app.listen(port, () => {
+      console.log(`Port ${port} is available`);
+      server.close();
+      resolve(port);
+    });
+    server.on('error', (err) => {
+      if (err.code === 'EADDRINUSE') {
+        resolve(null);
+      } else {
+        console.error('Port check error:', err.message);
+        resolve(null);
+      }
+    });
+  });
+};
+
+const startServer = async () => {
+  // Connect to MongoDB
+  try {
+    await connectDB();
+  } catch (err) {
+    console.error('Failed to start server due to MongoDB connection error');
+    process.exit(1);
+  }
+
+  // Start server
+  let port = DEFAULT_PORT;
+  let availablePort = await tryPort(port);
+  if (!availablePort) {
+    console.log(`Port ${port} in use, trying ${port + 1}`);
+    port += 1;
+    availablePort = await tryPort(port);
+  }
+  if (availablePort) {
+    app.listen(availablePort, () => console.log(`Server running on port ${availablePort}`));
+  } else {
+    console.error('No available ports');
+    process.exit(1);
+  }
+};
+
+startServer();
