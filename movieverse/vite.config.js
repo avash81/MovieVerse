@@ -12,4 +12,15 @@ export default defineConfig({
       },
     },
   },
+  // Deployment additions (new)
+  base: '/', // For sub-path deployments
+  build: {
+    outDir: 'dist',
+    emptyOutDir: true,
+    sourcemap: false // Disable in production
+  },
+  preview: {
+    port: 3000,
+    strictPort: true
+  }
 });

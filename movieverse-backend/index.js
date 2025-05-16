@@ -4,6 +4,15 @@ const dotenv = require('dotenv');
 const path = require('path');
 const connectDB = require('./src/config/db');
 
+import dotenv from 'dotenv';
+import path from 'path';
+
+// Load correct .env file
+if (process.env.NODE_ENV === 'production') {
+  dotenv.config({ path: path.resolve(process.cwd(), '.env.prod') });
+} else {
+  dotenv.config();
+}
 // Load .env from root directory
 dotenv.config();
 console.log('Attempting to load .env from:', path.resolve(process.cwd(), '.env'));
