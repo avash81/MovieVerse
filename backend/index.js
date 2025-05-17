@@ -4,18 +4,12 @@ const dotenv = require('dotenv');
 const path = require('path');
 const connectDB = require('./src/config/db');
 
-import dotenv from 'dotenv';
-import path from 'path';
-
-// Load correct .env file
 if (process.env.NODE_ENV === 'production') {
-  dotenv.config({ path: path.resolve(process.cwd(), '.env.prod') });
+  dotenv.config({ path: path.resolve(__dirname, '.env.prod') });
 } else {
-  dotenv.config();
+  dotenv.config({ path: path.resolve(__dirname, '.env') });
 }
-// Load .env from root directory
-dotenv.config();
-console.log('Attempting to load .env from:', path.resolve(process.cwd(), '.env'));
+
 console.log('Environment variables loaded:', {
   PORT: process.env.PORT,
   MONGO_URI: process.env.MONGO_URI ? '[set]' : 'undefined',
@@ -30,6 +24,17 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 app.use(require('./src/middleware/errorHandler'));
+
+// Serve static files from the 'public/build' directory
+//app.use(express.static(path.join(__dirname, 'public', 'build')));
+app.use(express.static(path.join(__dirname, 'public')));
+app.get('*', (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'index.html'));
+});
+// Add root route for backend health check
+app.get('/api', (req, res) => {
+  res.json({ message: 'MovieVerse Backend is running!' });
+});
 
 // Routes
 let moviesRouter, authRouter, watchlistRouter, reviewsRouter;
@@ -66,9 +71,13 @@ try {
   console.error('Failed to load reviews route:', err.message);
 }
 
-// Check port availability
+// Fallback to serve index.html for React Router
+app.get('*', (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'build', 'index.html'));
+});
+
 const DEFAULT_PORT = process.env.PORT || 5001;
-const tryPort = async (port) => {
+const tryPort = (port) => {
   return new Promise((resolve) => {
     const server = app.listen(port, () => {
       console.log(`Port ${port} is available`);
@@ -87,15 +96,13 @@ const tryPort = async (port) => {
 };
 
 const startServer = async () => {
-  // Connect to MongoDB
   try {
     await connectDB();
   } catch (err) {
-    console.error('Failed to start server due to MongoDB connection error');
+    console.error('Failed to start server due to MongoDB connection error:', err.message);
     process.exit(1);
   }
 
-  // Start server
   let port = DEFAULT_PORT;
   let availablePort = await tryPort(port);
   if (!availablePort) {
