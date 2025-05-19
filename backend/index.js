@@ -25,12 +25,6 @@ app.use(cors());
 app.use(express.json());
 app.use(require('./src/middleware/errorHandler'));
 
-// Serve static files from the 'public/build' directory
-//app.use(express.static(path.join(__dirname, 'public', 'build')));
-app.use(express.static(path.join(__dirname, 'public')));
-app.get('*', (req, res) => {
-  res.sendFile(path.join(__dirname, 'public', 'index.html'));
-});
 // Add root route for backend health check
 app.get('/api', (req, res) => {
   res.json({ message: 'MovieVerse Backend is running!' });
@@ -71,9 +65,21 @@ try {
   console.error('Failed to load reviews route:', err.message);
 }
 
-// Fallback to serve index.html for React Router
+// Serve static files from the 'public' directory (after API routes)
+app.use(express.static(path.join(__dirname, 'public')));
+
+// Fallback to serve index.html for React Router (after API routes)
 app.get('*', (req, res) => {
-  res.sendFile(path.join(__dirname, 'public', 'build', 'index.html'));
+  res.sendFile(path.join(__dirname, 'public', 'index.html'));
+});
+
+// Custom 404 handler with CORS headers
+app.use((req, res) => {
+  res.status(404).set({
+    'Access-Control-Allow-Origin': '*',
+    'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
+    'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+  }).json({ message: 'Route not found' });
 });
 
 const DEFAULT_PORT = process.env.PORT || 5001;

@@ -199,8 +199,8 @@ function Home() {
     return categories;
   }, [activeCategory, searchQuery]);
 
-  const renderMovieCard = (movie, categoryId) => (
-    <div key={`${categoryId}-${movie.source}-${movie.externalId}`} className="movie-card">
+  const renderMovieCard = (movie, categoryId, index) => (
+    <div key={`${categoryId}-${movie.source}-${movie.externalId}-${index}`} className="movie-card">
       <div
         className="movie-poster"
         onClick={() => openTrailerModal(movie.trailer)}
@@ -343,7 +343,7 @@ function Home() {
           }}
           aria-label="Go to top of page"
         >
-          MovieVerse
+          MovieVerse 2.0
         </h1>
         <div className="nav-container">
           <nav className="nav">
@@ -524,7 +524,7 @@ function Home() {
         <div className="category-section" id="watchlist">
           <h2>My Watchlist</h2>
           <div className="movie-grid horizontal-scroll">
-            {watchlist.filter((movie) => movie.source && movie.externalId).map((movie) => renderMovieCard(movie, 'watchlist'))}
+            {watchlist.filter((movie) => movie.source && movie.externalId).map((movie, index) => renderMovieCard(movie, 'watchlist', index))}
           </div>
         </div>
       )}
@@ -533,7 +533,7 @@ function Home() {
         <div className="category-section" id="recommendations">
           <h2>Recommended for You</h2>
           <div className="movie-grid horizontal-scroll">
-            {recommendations.filter((movie) => movie.source && movie.externalId).map((movie) => renderMovieCard(movie, 'recommendations'))}
+            {recommendations.filter((movie) => movie.source && movie.externalId).map((movie, index) => renderMovieCard(movie, 'recommendations', index))}
           </div>
         </div>
       )}
@@ -542,7 +542,7 @@ function Home() {
         <div className="search-results" id="search-results">
           <h2>Search Results</h2>
           <div className="movie-grid horizontal-scroll">
-            {searchResults.filter((movie) => movie.source && movie.externalId).map((movie) => renderMovieCard(movie, 'search-results'))}
+            {searchResults.filter((movie) => movie.source && movie.externalId).map((movie, index) => renderMovieCard(movie, 'search-results', index))}
           </div>
         </div>
       )}
@@ -560,9 +560,9 @@ function Home() {
                     typeof movie.source === 'string' &&
                     typeof movie.externalId === 'string'
                 )
-                .map((movie) => {
+                .map((movie, index) => {
                   console.log('Rendering movie:', { title: movie.title, source: movie.source, externalId: movie.externalId });
-                  return renderMovieCard(movie, category.id);
+                  return renderMovieCard(movie, category.id, index);
                 })}
             </div>
           ) : (

@@ -97,7 +97,7 @@ router.get('/categories/:categoryId', async (req, res) => {
     } else if (categoryId === 'classics') {
       endpoint = '/discover/movie';
       params.sort_by = 'vote_average.desc';
-      params.primary_release_year = 1990;
+      params.primary_release_date = { lte: '1990-12-31' }; // Fixed TMDB parameter for date comparison
     } else {
       console.error('Invalid category:', categoryId);
       return res.status(400).json({ msg: 'Invalid category' });

@@ -8,3 +8,5 @@ backend/.env
 .env.prod
 .DS_Store
 .vscode/
+
+frontend/build/

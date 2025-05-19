@@ -1,7 +1,7 @@
 import axios from 'axios';
 
-// Use REACT_APP_API_URL for Create React App; fallback to Render backend URL
-const API_URL = process.env.REACT_APP_API_URL || 'https://movieverse-backend-ewhk.onrender.com';
+// Use relative URL in production (Render), fallback to REACT_APP_API_URL or localhost for development
+const API_URL = process.env.NODE_ENV === 'production' ? '/api' : (process.env.REACT_APP_API_URL || 'http://localhost:5001');
 
 const getAuthHeaders = () => {
   const token = localStorage.getItem('token');
@@ -18,7 +18,7 @@ const getAuthHeaders = () => {
 export const getCategory = async (categoryId) => {
   console.log('API Request: /api/movies/categories/' + categoryId, getAuthHeaders());
   try {
-    const response = await axios.get(`${API_URL}/api/movies/categories/${categoryId}`, {
+    const response = await axios.get(`${API_URL}/movies/categories/${categoryId}`, {
       headers: getAuthHeaders(),
     });
     console.log('API Response: /api/movies/categories/' + categoryId, response.data);
