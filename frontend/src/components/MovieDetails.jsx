@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { useParams, Link, useNavigate } from 'react-router-dom';
+import { useParams, Link } from 'react-router-dom';
 import { Helmet } from 'react-helmet';
 import LazyLoad from 'react-lazyload';
 import { getMovieDetails, getReviews, submitReview, submitReply, submitReaction } from '../api/api';
@@ -25,7 +25,6 @@ const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 function MovieDetails() {
   const { source, externalId } = useParams();
-  const navigate = useNavigate();
   const [movie, setMovie] = useState(null);
   const [reviews, setReviews] = useState([]);
   const [error, setError] = useState(null);
@@ -46,7 +45,7 @@ function MovieDetails() {
 
     const fetchData = async () => {
       try {
-        console.log('Fetching movie details...');
+        console.log('Fetching movie details and reviews for:', { source, externalId });
         const [movieResponse, reviewsResponse] = await Promise.all([
           getMovieDetails(source, externalId),
           getReviews(source, externalId),
@@ -58,6 +57,8 @@ function MovieDetails() {
           throw new Error('Invalid movie data received');
         }
 
+        console.log('Movie Details Response:', movieResponse.data);
+        console.log('Reviews Response:', reviewsResponse.data);
         setMovie(movieResponse.data);
         setReviews(Array.isArray(reviewsResponse.data) ? reviewsResponse.data : []);
         setReactionCounts(
@@ -68,7 +69,7 @@ function MovieDetails() {
         console.error('Data loading error:', {
           message: err.message,
           response: err.response?.data,
-          stack: err.stack,
+          status: err.response?.status,
         });
         if (isMounted) {
           setError(err.response?.data?.msg || 'Failed to load movie details');
@@ -142,7 +143,7 @@ function MovieDetails() {
   const handleReaction = async (reaction) => {
     try {
       const response = await submitReaction(source, externalId, reaction);
-      setReactionCounts(response.data.reactionCounts);
+      setReactionCounts(response.data.reactionCounts || reactionCounts);
       setError(null);
     } catch (err) {
       setError('Failed to submit reaction. Check console for details.');
@@ -165,7 +166,7 @@ function MovieDetails() {
         email: replyEmail,
       });
       setReviews((prev) =>
-        prev.map((review) => (review._id === reviewId ? response.data : review))
+        prev.map((review) => (review._id === reviewId ? { ...review, replies: response.data.replies } : review))
       );
       setReplyText('');
       setReplyName('');

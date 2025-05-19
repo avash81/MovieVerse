@@ -25,12 +25,6 @@ app.use(cors());
 app.use(express.json());
 app.use(require('./src/middleware/errorHandler'));
 
-// Add root route for backend health check
-app.get('/api', (req, res) => {
-  console.log('Health check route hit');
-  res.json({ message: 'MovieVerse Backend is running!' });
-});
-
 // Routes
 let moviesRouter, authRouter, watchlistRouter, reviewsRouter;
 
@@ -69,31 +63,17 @@ try {
   console.error('Failed to load reviews route:', err.message);
 }
 
-// Redirect /movies/categories/:categoryId to /api/movies/categories/:categoryId
+// Redirect /movies/categories/:categoryId to /api/movies/categories/:categoryId to handle legacy URLs
 app.get('/movies/categories/:categoryId', (req, res) => {
   console.log(`Redirecting /movies/categories/${req.params.categoryId} to /api/movies/categories/${req.params.categoryId}`);
   res.redirect(`/api/movies/categories/${req.params.categoryId}`);
 });
 
-// Serve static files from the 'frontend/build' directory (after API routes)
+// Serve static files and handle all other routes with index.html for client-side routing
+// This ensures 'View Details' links work by letting React Router handle /movies/:source/:externalId
 app.use(express.static(path.join(__dirname, '../frontend/build')));
-
-// Custom 404 handler for API routes (moved before wildcard)
-app.use((req, res, next) => {
-  if (req.path.startsWith('/api/')) {
-    res.status(404).set({
-      'Access-Control-Allow-Origin': '*',
-      'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
-      'Access-Control-Allow-Headers': 'Content-Type, Authorization',
-    }).json({ message: 'API Route not found' });
-  } else {
-    next();
-  }
-});
-
-// Fallback to serve index.html for React Router (after API routes and 404 handler)
 app.get('*', (req, res) => {
-  console.log(`Wildcard route hit for: ${req.originalUrl}`);
+  console.log(`Serving index.html for: ${req.originalUrl}`);
   res.sendFile(path.join(__dirname, '../frontend/build', 'index.html'));
 });
 

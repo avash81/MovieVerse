@@ -1,7 +1,9 @@
 import axios from 'axios';
 
-// Use relative URL with proxy in development, fallback to REACT_APP_API_URL or localhost for production
-const API_URL = process.env.NODE_ENV === 'production' ? (process.env.REACT_APP_API_URL || 'http://localhost:5001') : '/api';
+// Use process.env.REACT_APP_API_URL for Create React App
+// Default to /api in production and http://localhost:5001/api in development
+// Note: Set REACT_APP_API_URL=/api in .env and Render environment for customization
+const API_URL = process.env.REACT_APP_API_URL || (process.env.NODE_ENV === 'production' ? '/api' : 'http://localhost:5001/api');
 
 const getAuthHeaders = () => {
   const token = localStorage.getItem('token');
@@ -16,19 +18,20 @@ const getAuthHeaders = () => {
 };
 
 export const getCategory = async (categoryId) => {
-  console.log('API Request: /api/movies/categories/' + categoryId, getAuthHeaders());
+  console.log('API Request: /movies/categories/' + categoryId, getAuthHeaders());
   try {
     const response = await axios.get(`${API_URL}/movies/categories/${categoryId}`, {
       headers: getAuthHeaders(),
+      timeout: 10000, // Add timeout to prevent hanging requests
     });
-    console.log('API Response: /api/movies/categories/' + categoryId, {
+    console.log('API Response: /movies/categories/' + categoryId, {
       status: response.status,
       data: response.data,
       headers: response.headers,
     });
     // Ensure data is an array or empty array if invalid
     const data = Array.isArray(response.data) ? response.data : (response.data.data || []);
-    return { data }; // Return object with 'data' property for consistency
+    return { data };
   } catch (err) {
     console.error('Error fetching category:', {
       message: err.message,
@@ -41,12 +44,13 @@ export const getCategory = async (categoryId) => {
 };
 
 export const getMovieDetails = async (source, externalId) => {
-  console.log('API Request: /api/movies/details/' + source + '/' + externalId, getAuthHeaders());
+  console.log('API Request: /movies/details/' + source + '/' + externalId, getAuthHeaders());
   try {
-    const response = await axios.get(`${API_URL}/api/movies/details/${source}/${externalId}`, {
+    const response = await axios.get(`${API_URL}/movies/details/${source}/${externalId}`, {
       headers: getAuthHeaders(),
+      timeout: 10000,
     });
-    console.log('API Response: /api/movies/details/' + source + '/' + externalId, response.data);
+    console.log('API Response: /movies/details/' + source + '/' + externalId, response.data);
     return response;
   } catch (err) {
     console.error('Error fetching movie details:', {
@@ -87,6 +91,7 @@ export const getReviews = async (source, externalId) => {
   try {
     const response = await axios.get(`${API_URL}/api/reviews/${source}/${externalId}`, {
       headers: getAuthHeaders(),
+      timeout: 10000,
     });
     console.log('API Response: /api/reviews/' + source + '/' + externalId, response.data);
     return response;
@@ -149,6 +154,7 @@ export const login = async (email, password) => {
   try {
     const response = await axios.post(`${API_URL}/api/auth/login`, { email, password }, {
       headers: getAuthHeaders(),
+      timeout: 10000,
     });
     console.log('API Response: /api/auth/login', response.data);
     return response;
@@ -167,6 +173,7 @@ export const register = async (email, password) => {
   try {
     const response = await axios.post(`${API_URL}/api/auth/register`, { email, password }, {
       headers: getAuthHeaders(),
+      timeout: 10000,
     });
     console.log('API Response: /api/auth/register', response.data);
     return response;
@@ -181,12 +188,13 @@ export const register = async (email, password) => {
 };
 
 export const getNotices = async () => {
-  console.log('API Request: /api/movies/notices', getAuthHeaders());
+  console.log('API Request: /movies/notices', getAuthHeaders());
   try {
-    const response = await axios.get(`${API_URL}/api/movies/notices`, {
+    const response = await axios.get(`${API_URL}/movies/notices`, {
       headers: getAuthHeaders(),
+      timeout: 10000,
     });
-    console.log('API Response: /api/movies/notices', response.data);
+    console.log('API Response: /movies/notices', response.data);
     return response;
   } catch (err) {
     console.error('Error fetching notices:', {

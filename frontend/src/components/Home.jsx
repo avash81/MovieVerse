@@ -105,7 +105,8 @@ function Home() {
               : `Error loading ${category.name}: Failed to load.`
           );
         }
-        await new Promise((resolve) => setTimeout(resolve, 500));
+        // Increased delay to 1000ms to avoid TMDB rate limits and browser resource issues (e.g., ERR_INSUFFICIENT_RESOURCES)
+        await new Promise((resolve) => setTimeout(resolve, 1000));
       }
 
       setMoviesByCategory(newMoviesByCategory);
@@ -221,7 +222,7 @@ function Home() {
         <div className="movie-overlay">
           <p>IMDb Rating: {movie.imdbRating || 'N/A'}</p>
           <Link
-            to={`/movie/${movie.source}/${movie.externalId}`}
+            to={`/movies/${movie.source}/${movie.externalId}`} // Fixed to use client-side routing path
             onClick={() => trackClick('view_details', movie.externalId, movie.title)}
           >
             <button
@@ -470,7 +471,7 @@ function Home() {
                   </button>
                 )}
                 <Link
-                  to={`/movie/${featuredMovie.source}/${featuredMovie.externalId}`}
+                  to={`/movies/${featuredMovie.source}/${featuredMovie.externalId}`} // Fixed to use client-side routing path
                   onClick={() => trackClick('view_details', featuredMovie.externalId, featuredMovie.title)}
                 >
                   <button
