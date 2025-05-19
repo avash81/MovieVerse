@@ -5,7 +5,7 @@
   "main": "index.js",
   "scripts": {
     "start": "node index.js",
-    "build:frontend": "cd C:\\Users\\hp\\Desktop\\new\\project\\frontend && npm install && npm run build",
+    "build:frontend": "cd frontend && npm install && npm run build",
     "heroku-postbuild": "npm run build:frontend",
     "start:dev": "nodemon index.js"
   },
