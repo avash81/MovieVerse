@@ -88,15 +88,31 @@ app.get('*', (req, res) => {
 });
 
 const startServer = async () => {
-  try {
+  mongoose.connection.on('disconnected', () => {
+    console.log('MongoDB disconnected. Attempting to reconnect...');
+  });
+
+  mongoose.connection.on('reconnected', () => {
+    console.log('MongoDB reconnected');
+  });
+
+  const connectWithRetry = async () => {
     const uri = process.env.MONGO_URI || 'mongodb://localhost:27017/movieverse';
-    console.log('Attempting to connect to MongoDB with URI:', uri); // Debug log
-    await mongoose.connect(uri);
-    console.log('MongoDB connected');
-  } catch (err) {
-    console.error('Failed to start server due to MongoDB connection error:', err.message);
-    process.exit(1);
-  }
+    console.log('Attempting to connect to MongoDB with URI:', uri);
+    try {
+      await mongoose.connect(uri, {
+        serverSelectionTimeoutMS: 5000,
+        heartBeatFrequencyMS: 10000,
+        autoReconnect: true,
+      });
+      console.log('MongoDB connected');
+    } catch (err) {
+      console.error('MongoDB connection error:', err.message);
+      setTimeout(connectWithRetry, 5000); // Retry every 5 seconds
+    }
+  };
+
+  await connectWithRetry();
 
   const PORT = process.env.PORT || 5001;
   app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
