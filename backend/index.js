@@ -87,28 +87,10 @@ app.get('*', (req, res) => {
   res.sendFile(path.join(__dirname, '../frontend/build', 'index.html'));
 });
 
-const DEFAULT_PORT = process.env.PORT || 5001;
-const tryPort = (port) => {
-  return new Promise((resolve) => {
-    const server = app.listen(port, () => {
-      console.log(`Port ${port} is available`);
-      server.close();
-      resolve(port);
-    });
-    server.on('error', (err) => {
-      if (err.code === 'EADDRINUSE') {
-        resolve(null);
-      } else {
-        console.error('Port check error:', err.message);
-        resolve(null);
-      }
-    });
-  });
-};
-
 const startServer = async () => {
   try {
-    const uri = process.env.MONGODB_URI || 'mongodb://localhost:27017/movieverse';
+    const uri = process.env.MONGO_URI || 'mongodb://localhost:27017/movieverse';
+    console.log('Attempting to connect to MongoDB with URI:', uri); // Debug log
     await mongoose.connect(uri);
     console.log('MongoDB connected');
   } catch (err) {
@@ -116,19 +98,8 @@ const startServer = async () => {
     process.exit(1);
   }
 
-  let port = DEFAULT_PORT;
-  let availablePort = await tryPort(port);
-  if (!availablePort) {
-    console.log(`Port ${port} in use, trying ${port + 1}`);
-    port += 1;
-    availablePort = await tryPort(port);
-  }
-  if (availablePort) {
-    app.listen(availablePort, () => console.log(`Server running on port ${availablePort}`));
-  } else {
-    console.error('No available ports');
-    process.exit(1);
-  }
+  const PORT = process.env.PORT || 5001;
+  app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
 };
 
 startServer();
