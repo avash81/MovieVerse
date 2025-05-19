@@ -76,6 +76,7 @@ function Home() {
       try {
         const noticesResponse = await fetchWithTimeout(getNotices);
         setNotices(Array.isArray(noticesResponse.data) ? noticesResponse.data : []);
+        console.log('Notices Response:', noticesResponse);
       } catch (err) {
         console.error('Error fetching notices:', err);
         setNotices([]);
@@ -84,6 +85,7 @@ function Home() {
       for (const category of categories) {
         try {
           const response = await fetchWithTimeout(getCategory, category.id);
+          console.log(`Category ${category.id} Response:`, response);
           const movies = Array.isArray(response.data) ? response.data : [];
           newMoviesByCategory[category.id] = movies.filter(
             (movie) =>
@@ -118,7 +120,7 @@ function Home() {
     };
 
     fetchData();
-  }, []);
+  }, [categories, error]);
 
   const handleSearchChange = (e) => {
     const query = e.target.value;
@@ -197,7 +199,7 @@ function Home() {
       ];
     }
     return categories;
-  }, [activeCategory, searchQuery]);
+  }, [activeCategory, searchQuery, categories]);
 
   const renderMovieCard = (movie, categoryId, index) => (
     <div key={`${categoryId}-${movie.source}-${movie.externalId}-${index}`} className="movie-card">
@@ -404,6 +406,7 @@ function Home() {
                           tabIndex={0}
                           onKeyPress={(e) => e.key === 'Enter' && setSearchQuery(movie.title) && setSearchResults([movie]) && setShowSearch(false)}
                           aria-label={`Select ${movie.title}`}
+                          aria-selected={false}
                         >
                           {movie.title}
                         </li>

@@ -1,8 +1,8 @@
 const express = require('express');
+const mongoose = require('mongoose');
 const cors = require('cors');
 const dotenv = require('dotenv');
 const path = require('path');
-const connectDB = require('./src/config/db');
 
 if (process.env.NODE_ENV === 'production') {
   dotenv.config({ path: path.resolve(__dirname, '.env.prod') });
@@ -65,21 +65,26 @@ try {
   console.error('Failed to load reviews route:', err.message);
 }
 
-// Serve static files from the 'public' directory (after API routes)
-app.use(express.static(path.join(__dirname, 'public')));
+// Serve static files from the 'frontend/build' directory (after API routes)
+app.use(express.static(path.join(__dirname, '../frontend/build')));
 
-// Fallback to serve index.html for React Router (after API routes)
-app.get('*', (req, res) => {
-  res.sendFile(path.join(__dirname, 'public', 'index.html'));
+// Custom 404 handler for API routes (moved before wildcard)
+app.use((req, res, next) => {
+  if (req.path.startsWith('/api/')) {
+    res.status(404).set({
+      'Access-Control-Allow-Origin': '*',
+      'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
+      'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+    }).json({ message: 'API Route not found' });
+  } else {
+    next();
+  }
 });
 
-// Custom 404 handler with CORS headers
-app.use((req, res) => {
-  res.status(404).set({
-    'Access-Control-Allow-Origin': '*',
-    'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
-    'Access-Control-Allow-Headers': 'Content-Type, Authorization',
-  }).json({ message: 'Route not found' });
+// Fallback to serve index.html for React Router (after API routes and 404 handler)
+app.get('*', (req, res) => {
+  console.log(`Wildcard route hit for: ${req.originalUrl}`);
+  res.sendFile(path.join(__dirname, '../frontend/build', 'index.html'));
 });
 
 const DEFAULT_PORT = process.env.PORT || 5001;
@@ -103,7 +108,9 @@ const tryPort = (port) => {
 
 const startServer = async () => {
   try {
-    await connectDB();
+    const uri = process.env.MONGODB_URI || 'mongodb://localhost:27017/movieverse';
+    await mongoose.connect(uri);
+    console.log('MongoDB connected');
   } catch (err) {
     console.error('Failed to start server due to MongoDB connection error:', err.message);
     process.exit(1);

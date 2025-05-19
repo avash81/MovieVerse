@@ -1,7 +1,7 @@
 import axios from 'axios';
 
-// Use relative URL in production (Render), fallback to REACT_APP_API_URL or localhost for development
-const API_URL = process.env.NODE_ENV === 'production' ? '/api' : (process.env.REACT_APP_API_URL || 'http://localhost:5001');
+// Use relative URL with proxy in development, fallback to REACT_APP_API_URL or localhost for production
+const API_URL = process.env.NODE_ENV === 'production' ? (process.env.REACT_APP_API_URL || 'http://localhost:5001') : '/api';
 
 const getAuthHeaders = () => {
   const token = localStorage.getItem('token');
@@ -21,13 +21,20 @@ export const getCategory = async (categoryId) => {
     const response = await axios.get(`${API_URL}/movies/categories/${categoryId}`, {
       headers: getAuthHeaders(),
     });
-    console.log('API Response: /api/movies/categories/' + categoryId, response.data);
-    return response;
+    console.log('API Response: /api/movies/categories/' + categoryId, {
+      status: response.status,
+      data: response.data,
+      headers: response.headers,
+    });
+    // Ensure data is an array or empty array if invalid
+    const data = Array.isArray(response.data) ? response.data : (response.data.data || []);
+    return { data }; // Return object with 'data' property for consistency
   } catch (err) {
     console.error('Error fetching category:', {
       message: err.message,
       response: err.response?.data,
       status: err.response?.status,
+      headers: err.response?.headers,
     });
     throw err;
   }

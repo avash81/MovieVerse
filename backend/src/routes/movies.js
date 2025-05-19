@@ -63,7 +63,7 @@ router.get('/categories/:categoryId', async (req, res) => {
     const cachedMovies = await Movie.find({ category: categoryId });
     if (cachedMovies.length >= 20) {
       console.log(`Serving ${categoryId} movies from cache:`, cachedMovies.length);
-      return res.json(cachedMovies);
+      return res.json({ data: cachedMovies }); // Ensure response has 'data' field
     }
 
     let movies = [];
@@ -128,7 +128,7 @@ router.get('/categories/:categoryId', async (req, res) => {
     }
 
     await delay(500); // Delay to avoid rate limiting
-    res.json(formattedMovies);
+    res.json({ data: formattedMovies }); // Ensure response has 'data' field
   } catch (err) {
     console.error(`Error fetching category ${categoryId}:`, {
       message: err.message,
@@ -288,7 +288,7 @@ router.get('/notices', async (req, res) => {
       { text: 'Login to submit reviews and join the community!' },
     ];
     console.log('Notices fetched:', notices.length);
-    res.json(notices);
+    res.json({ data: notices }); // Ensure response has 'data' field
   } catch (err) {
     console.error('Error fetching notices:', {
       message: err.message,
