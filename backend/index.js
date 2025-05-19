@@ -27,6 +27,7 @@ app.use(require('./src/middleware/errorHandler'));
 
 // Add root route for backend health check
 app.get('/api', (req, res) => {
+  console.log('Health check route hit');
   res.json({ message: 'MovieVerse Backend is running!' });
 });
 
@@ -35,7 +36,10 @@ let moviesRouter, authRouter, watchlistRouter, reviewsRouter;
 
 try {
   moviesRouter = require('./src/routes/movies');
-  app.use('/api/movies', moviesRouter);
+  app.use('/api/movies', (req, res, next) => {
+    console.log(`Movies route hit: ${req.method} ${req.originalUrl}`);
+    moviesRouter(req, res, next);
+  });
   console.log('Movies route loaded');
 } catch (err) {
   console.error('Failed to load movies route:', err.message);
@@ -64,6 +68,12 @@ try {
 } catch (err) {
   console.error('Failed to load reviews route:', err.message);
 }
+
+// Redirect /movies/categories/:categoryId to /api/movies/categories/:categoryId
+app.get('/movies/categories/:categoryId', (req, res) => {
+  console.log(`Redirecting /movies/categories/${req.params.categoryId} to /api/movies/categories/${req.params.categoryId}`);
+  res.redirect(`/api/movies/categories/${req.params.categoryId}`);
+});
 
 // Serve static files from the 'frontend/build' directory (after API routes)
 app.use(express.static(path.join(__dirname, '../frontend/build')));
@@ -108,7 +118,7 @@ const startServer = async () => {
       console.log('MongoDB connected');
     } catch (err) {
       console.error('MongoDB connection error:', err.message);
-      setTimeout(connectWithRetry, 5000); // Retry every 5 seconds
+      setTimeout(connectWithRetry, 5000);
     }
   };
 
