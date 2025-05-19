@@ -5,7 +5,7 @@
   "main": "index.js",
   "scripts": {
     "start": "node index.js",
-    "build:frontend": "cd frontend && npm install && npm run build",
+    "build:frontend": "npm install --prefix ../frontend && npm run build --prefix ../frontend",
     "heroku-postbuild": "npm run build:frontend",
     "start:dev": "nodemon index.js"
   },
