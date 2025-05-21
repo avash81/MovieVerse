@@ -202,7 +202,22 @@ function Home() {
     return categories;
   }, [activeCategory, searchQuery, categories]);
 
-  const renderMovieCard = (movie, categoryId, index) => (
+ const renderMovieCard = (movie, categoryId, index) => {
+  // Safely handle genres
+  let genresString = 'N/A'; // Default fallback
+  if (movie.genres) {
+    if (Array.isArray(movie.genres)) {
+      // Check if genres is an array of objects (TMDB format) or strings
+      genresString = movie.genres
+        .map(genre => (typeof genre === 'object' && genre.name ? genre.name : genre))
+        .join(', ');
+    } else if (typeof movie.genres === 'string') {
+      // If genres is a string (OMDB format)
+      genresString = movie.genres;
+    }
+  }
+
+  return (
     <div key={`${categoryId}-${movie.source}-${movie.externalId}-${index}`} className="movie-card">
       <div
         className="movie-poster"
@@ -280,7 +295,7 @@ function Home() {
           </span>
           <span style={{ color: '#666', fontSize: '12px', marginRight: '5px' }}>•</span>
           <span style={{ color: '#666', fontSize: '14px' }}>
-            {movie.genres?.join(', ') || 'N/A'}
+            {genresString}
           </span>
         </div>
         <button
@@ -294,6 +309,7 @@ function Home() {
       </div>
     </div>
   );
+};
 
   return (
     <div className="home fade-in">

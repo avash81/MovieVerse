@@ -1,111 +1,41 @@
+require('dotenv').config();
 const express = require('express');
 const mongoose = require('mongoose');
 const cors = require('cors');
-const dotenv = require('dotenv');
-const path = require('path');
-
-if (process.env.NODE_ENV === 'production') {
-  dotenv.config({ path: path.resolve(__dirname, '.env.prod') });
-} else {
-  dotenv.config({ path: path.resolve(__dirname, '.env') });
-}
-
-console.log('Environment variables loaded:', {
-  PORT: process.env.PORT,
-  MONGO_URI: process.env.MONGO_URI ? '[set]' : 'undefined',
-  JWT_SECRET: process.env.JWT_SECRET ? '[set]' : 'undefined',
-  TMDB_API_KEY: process.env.TMDB_API_KEY ? '[set]' : 'undefined',
-  OMDB_API_KEY: process.env.OMDB_API_KEY ? '[set]' : 'undefined',
-});
-
+const moviesRouter = require('./src/routes/movies');
+const reviewsRouter = require('./src/routes/reviews');
 const app = express();
-
-// Middleware
-app.use(cors());
-app.use(express.json());
-app.use(require('./src/middleware/errorHandler'));
-
-// Routes
-let moviesRouter, authRouter, watchlistRouter, reviewsRouter;
-
-try {
-  moviesRouter = require('./src/routes/movies');
-  app.use('/api/movies', (req, res, next) => {
-    console.log(`Movies route hit: ${req.method} ${req.originalUrl}`);
-    moviesRouter(req, res, next);
-  });
-  console.log('Movies route loaded');
-} catch (err) {
-  console.error('Failed to load movies route:', err.message);
-}
-
-try {
-  authRouter = require('./src/routes/auth');
-  app.use('/api/auth', authRouter);
-  console.log('Auth route loaded');
-} catch (err) {
-  console.error('Failed to load auth route:', err.message);
-}
-
-try {
-  watchlistRouter = require('./src/routes/watchlist');
-  app.use('/api/watchlist', watchlistRouter);
-  console.log('Watchlist route loaded');
-} catch (err) {
-  console.error('Failed to load watchlist route:', err.message);
-}
-
-try {
-  reviewsRouter = require('./src/routes/reviews');
-  app.use('/api/reviews', reviewsRouter);
-  console.log('Reviews route loaded');
-} catch (err) {
-  console.error('Failed to load reviews route:', err.message);
-}
-
-// Redirect /movies/categories/:categoryId to /api/movies/categories/:categoryId to handle legacy URLs
-app.get('/movies/categories/:categoryId', (req, res) => {
-  console.log(`Redirecting /movies/categories/${req.params.categoryId} to /api/movies/categories/${req.params.categoryId}`);
-  res.redirect(`/api/movies/categories/${req.params.categoryId}`);
-});
-
-// Serve static files and handle all other routes with index.html for client-side routing
-// This ensures 'View Details' links work by letting React Router handle /movies/:source/:externalId
-app.use(express.static(path.join(__dirname, '../frontend/build')));
-app.get('*', (req, res) => {
-  console.log(`Serving index.html for: ${req.originalUrl}`);
-  res.sendFile(path.join(__dirname, '../frontend/build', 'index.html'));
-});
-
-const startServer = async () => {
-  mongoose.connection.on('disconnected', () => {
-    console.log('MongoDB disconnected. Attempting to reconnect...');
-  });
-
-  mongoose.connection.on('reconnected', () => {
-    console.log('MongoDB reconnected');
-  });
-
-  const connectWithRetry = async () => {
-    const uri = process.env.MONGO_URI || 'mongodb://localhost:27017/movieverse';
-    console.log('Attempting to connect to MongoDB with URI:', uri);
-    try {
-      await mongoose.connect(uri, {
-        serverSelectionTimeoutMS: 5000,
-        connectTimeoutMS: 10000,
-        socketTimeoutMS: 45000,
-      });
-      console.log('MongoDB connected');
-    } catch (err) {
-      console.error('MongoDB connection error:', err.message);
-      setTimeout(connectWithRetry, 5000);
-    }
-  };
-
-  await connectWithRetry();
-
-  const PORT = process.env.PORT || 5001;
-  app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
+// Configure CORS to allow requests from specific origins
+const corsOptions = {
+  origin: ['http://localhost:3000', 'https://movieverse-h5tx.onrender.com'],
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization'],
+  credentials: true,
 };
+app.use(cors(corsOptions));
+app.options('*', cors(corsOptions));
 
-startServer();
+app.use(express.json());
+
+// Log all incoming requests for debugging
+app.use((req, res, next) => {
+  console.log(`Incoming request: ${req.method} ${req.url}`);
+  next();
+});
+
+const mongoURI = process.env.MONGODB_URI || 'mongodb://localhost:27017/movieverse';
+mongoose.connect(mongoURI, {
+  serverSelectionTimeoutMS: 5000,
+  heartbeatFrequencyMS: 10000,
+}).then(() => console.log('Connected to MongoDB')).catch(err => console.error('MongoDB connection error:', err));
+
+app.use('/api/movies', moviesRouter);
+app.use('/api/reviews', reviewsRouter);
+
+app.get('/api/health', (req, res) => {
+  res.status(200).json({ message: 'Backend server is running' });
+});
+
+const PORT = process.env.PORT || 5001;
+app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
+console.log('TMDB_API_KEY:', process.env.TMDB_API_KEY);
