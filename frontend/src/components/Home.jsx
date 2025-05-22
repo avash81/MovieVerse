@@ -36,22 +36,53 @@ function Home() {
   const [showSearch, setShowSearch] = useState(false);
   const [quickViewMovie, setQuickViewMovie] = useState(null);
   const [reactionCounts, setReactionCounts] = useState({});
+  const [userReactions, setUserReactions] = useState(JSON.parse(localStorage.getItem('userReactions')) || {});
+
+  // Generate or retrieve a temporary user ID
+  const userId = localStorage.getItem('tempUserId') || (() => {
+    const id = 'user_' + Math.random().toString(36).substr(2, 9);
+    localStorage.setItem('tempUserId', id);
+    return id;
+  })();
 
   const handleReaction = async (externalId, reactionType) => {
     try {
+      // Check if user has already reacted
+      if (userReactions[`${externalId}`]) {
+        console.log(`User ${userId} has already reacted to ${externalId}`);
+        return;
+      }
+
       const response = await fetch(`/api/movies/reactions/tmdb/${externalId}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ reaction: reactionType }),
+        body: JSON.stringify({ reaction: reactionType, userId }),
       });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        console.error('Reaction error:', errorData.msg);
+        return;
+      }
+
       const data = await response.json();
       setReactionCounts(prev => ({
         ...prev,
         [externalId]: {
           ...(prev[externalId] || {}),
-          ...data.reactionCounts
-        }
+          ...data.reactionCounts,
+        },
       }));
+
+      // Update local user reactions
+      const newUserReactions = {
+        ...userReactions,
+        [`${externalId}`]: reactionType,
+      };
+      setUserReactions(newUserReactions);
+      localStorage.setItem('userReactions', JSON.stringify(newUserReactions));
+
+      console.log(`Reaction ${reactionType} recorded for ${externalId} by user ${userId}`);
     } catch (error) {
       console.error('Reaction error:', error);
     }
@@ -144,9 +175,15 @@ function Home() {
         for (const movie of movies) {
           try {
             const res = await fetch(`/api/movies/details/${movie.source}/${movie.externalId}`);
-            counts[movie.externalId] = res.ok ? (await res.json()).reactionCounts || {} : {};
-          } catch {
-            counts[movie.externalId] = {};
+            if (res.ok) {
+              counts[movie.externalId] = (await res.json()).reactionCounts || {};
+            } else {
+              console.warn(`Failed to fetch details for ${movie.source}/${movie.externalId}: ${res.status}`);
+              counts[movie.externalId] = { excellent: 0, good: 0, average: 0, sad: 0 };
+            }
+          } catch (err) {
+            console.error(`Error fetching details for ${movie.source}/${movie.externalId}:`, err);
+            counts[movie.externalId] = { excellent: 0, good: 0, average: 0, sad: 0 };
           }
         }
       }
@@ -160,13 +197,20 @@ function Home() {
     const query = e.target.value;
     setSearchQuery(query);
     if (query.trim()) {
-      const suggestions = Object.values(moviesByCategory)
+      const results = Object.values(moviesByCategory)
         .flat()
         .filter((movie) => movie.title.toLowerCase().includes(query.toLowerCase()))
-        .slice(0, 5);
-      setSearchSuggestions(suggestions);
+        .slice(0, 20);
+      setSearchSuggestions(results.slice(0, 5));
+      setSearchResults(results);
+      // Scroll to search results immediately
+      const searchResultsElement = document.getElementById('search-results');
+      if (searchResultsElement) {
+        searchResultsElement.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }
     } else {
       setSearchSuggestions([]);
+      setSearchResults([]);
     }
   };
 
@@ -330,13 +374,14 @@ function Home() {
                     e.stopPropagation();
                     handleReaction(movie.externalId, reaction);
                   }}
-                  disabled={reactionCounts[movie.externalId]?.[reaction] > 0}
+                  disabled={!!userReactions[`${movie.externalId}`]}
                   aria-label={`React with ${reaction} to ${movie.title}`}
                   style={{
                     fontSize: '12px',
                     padding: '5px 8px',
-                    opacity: reactionCounts[movie.externalId]?.[reaction] > 0 ? 0.6 : 1
+                    opacity: userReactions[`${movie.externalId}`] ? 0.6 : 1,
                   }}
+                  title={userReactions[`${movie.externalId}`] ? `You reacted: ${userReactions[`${movie.externalId}`]}` : ''}
                 >
                   {{
                     excellent: 'Excellent 👍',
@@ -480,10 +525,24 @@ function Home() {
                             setSearchQuery(movie.title);
                             setSearchResults([movie]);
                             setShowSearch(false);
+                            const searchResultsElement = document.getElementById('search-results');
+                            if (searchResultsElement) {
+                              searchResultsElement.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                            }
                           }}
                           role="option"
                           tabIndex={0}
-                          onKeyPress={(e) => e.key === 'Enter' && setSearchQuery(movie.title) && setSearchResults([movie]) && setShowSearch(false)}
+                          onKeyPress={(e) => {
+                            if (e.key === 'Enter') {
+                              setSearchQuery(movie.title);
+                              setSearchResults([movie]);
+                              setShowSearch(false);
+                              const searchResultsElement = document.getElementById('search-results');
+                              if (searchResultsElement) {
+                                searchResultsElement.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                              }
+                            }
+                          }}
                           aria-label={`Select ${movie.title}`}
                           aria-selected={false}
                         >
@@ -504,7 +563,7 @@ function Home() {
           <div className="ticker-content">
             {notices.map((notice, index) => (
               <span key={index} className="ticker-item">
-                {notice.text}
+                {notice.text || notice.message}
               </span>
             ))}
           </div>
@@ -582,13 +641,14 @@ function Home() {
                       key={reaction}
                       className="cta-button"
                       onClick={() => handleReaction(featuredMovie.externalId, reaction)}
-                      disabled={reactionCounts[featuredMovie.externalId]?.[reaction] > 0}
+                      disabled={!!userReactions[`${featuredMovie.externalId}`]}
                       aria-label={`React with ${reaction} to ${featuredMovie.title}`}
                       style={{
                         fontSize: '12px',
                         padding: '5px 8px',
-                        opacity: reactionCounts[featuredMovie.externalId]?.[reaction] > 0 ? 0.6 : 1
+                        opacity: userReactions[`${featuredMovie.externalId}`] ? 0.6 : 1,
                       }}
+                      title={userReactions[`${featuredMovie.externalId}`] ? `You reacted: ${userReactions[`${featuredMovie.externalId}`]}` : ''}
                     >
                       {{
                         excellent: 'Excellent 👍',

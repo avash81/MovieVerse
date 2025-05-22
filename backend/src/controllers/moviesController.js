@@ -62,7 +62,6 @@ const getMovieDetails = async (req, res) => {
   console.log(`[moviesController] getMovieDetails Start: source=${source}, externalId=${externalId}`);
 
   try {
-    // Check database
     let movie = await Movie.findOne({ source, externalId });
     console.log(`[moviesController] Database query: ${movie ? `Found: ${movie.title}` : 'Not found'}`);
 
@@ -71,7 +70,6 @@ const getMovieDetails = async (req, res) => {
       return res.json(movie);
     }
 
-    // Fetch from TMDB
     console.log('[moviesController] Fetching from TMDB API');
     let tmdbMovie;
     try {
@@ -87,7 +85,6 @@ const getMovieDetails = async (req, res) => {
         status: tmdbErr.response?.status,
         data: tmdbErr.response?.data,
       });
-      // Return fallback response
       console.log('[moviesController] Returning fallback response');
       return res.status(200).json({
         source,
@@ -115,7 +112,6 @@ const getMovieDetails = async (req, res) => {
       });
     }
 
-    // Process TMDB data
     movie = {
       source: 'tmdb',
       externalId: tmdbMovie.id.toString(),
@@ -151,7 +147,6 @@ const getMovieDetails = async (req, res) => {
       reactionCounts: { excellent: 0, good: 0, average: 0, sad: 0 },
     };
 
-    // Save to database
     try {
       await Movie.create(movie);
       console.log(`[moviesController] Movie saved to database: ${movie.title}`);
@@ -195,20 +190,35 @@ const getMovieDetails = async (req, res) => {
 
 const handleReaction = async (req, res) => {
   const { source, externalId } = req.params;
-  const { reaction } = req.body;
-  console.log(`[moviesController] Handling reaction: ${reaction} for ${source}/${externalId}`);
+  const { reaction, userId } = req.body;
+  console.log(`[moviesController] Handling reaction: ${reaction} for ${source}/${externalId} by user ${userId}`);
+
   try {
     if (!['excellent', 'good', 'average', 'sad'].includes(reaction)) {
       return res.status(400).json({ msg: 'Invalid reaction type' });
     }
-    const movie = await Movie.findOneAndUpdate(
-      { source, externalId },
-      { $inc: { [`reactionCounts.${reaction}`]: 1 } },
-      { new: true }
-    );
+    if (!userId) {
+      return res.status(400).json({ msg: 'User ID is required' });
+    }
+
+    const movie = await Movie.findOne({ source, externalId });
     if (!movie) {
       return res.status(404).json({ msg: 'Movie not found' });
     }
+
+    // Check if user has already reacted
+    const existingReaction = movie.userReactions.find(r => r.userId === userId);
+    if (existingReaction) {
+      return res.status(400).json({ msg: 'User has already submitted a reaction for this movie' });
+    }
+
+    // Add user reaction and increment reaction count
+    movie.userReactions.push({ userId, reaction });
+    movie.reactionCounts[reaction] = (movie.reactionCounts[reaction] || 0) + 1;
+
+    await movie.save();
+    console.log(`[moviesController] Reaction saved: ${reaction} for ${source}/${externalId} by user ${userId}`);
+
     res.json({ reactionCounts: movie.reactionCounts });
   } catch (err) {
     console.error('[moviesController] Error handling reaction:', err.message, err.stack);
