@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { Helmet } from 'react-helmet';
 import LazyLoad from 'react-lazyload';
-import { getMovieDetails, getReviews, submitReview, submitReply, submitReaction } from '../api/api';
+import { getMovieDetails, getReviews, submitReview, submitReply } from '../api/api';
 import '../styles.css';
 
 const formatTimestamp = (date) => {
@@ -30,13 +30,20 @@ function MovieDetails() {
   const [reviewText, setReviewText] = useState('');
   const [reviewName, setReviewName] = useState('');
   const [reviewEmail, setReviewEmail] = useState('');
+  const [reviewRating, setReviewRating] = useState('');
   const [watchlist, setWatchlist] = useState(JSON.parse(localStorage.getItem('watchlist')) || []);
-  const [selectedTrailer, setSelectedTrailer] = useState(null);
-  const [reactionCounts, setReactionCounts] = useState({ excellent: 0, good: 0, average: 0, sad: 0 });
   const [replyingTo, setReplyingTo] = useState(null);
   const [replyText, setReplyText] = useState('');
   const [replyName, setReplyName] = useState('');
   const [replyEmail, setReplyEmail] = useState('');
+  const [userReactions, setUserReactions] = useState(JSON.parse(localStorage.getItem('userReactions')) || {});
+
+  // Generate or retrieve temporary user ID
+  const userId = localStorage.getItem('tempUserId') || (() => {
+    const id = 'user_' + Math.random().toString(36).substr(2, 9);
+    localStorage.setItem('tempUserId', id);
+    return id;
+  })();
 
   useEffect(() => {
     let isMounted = true;
@@ -59,9 +66,6 @@ function MovieDetails() {
         console.log('Reviews Response:', reviewsResponse.data);
         setMovie(movieResponse.data);
         setReviews(Array.isArray(reviewsResponse.data) ? reviewsResponse.data : []);
-        setReactionCounts(
-          movieResponse.data.reactionCounts || { excellent: 0, good: 0, average: 0, sad: 0 }
-        );
         setError(null);
       } catch (err) {
         console.error('Data loading error:', {
@@ -105,20 +109,10 @@ function MovieDetails() {
     e.target.src = 'https://placehold.co/300x450?text=No+Poster';
   };
 
-  const openTrailerModal = (trailerUrl) => {
-    if (trailerUrl && trailerUrl !== 'N/A') {
-      setSelectedTrailer(trailerUrl);
-    }
-  };
-
-  const closeTrailerModal = () => {
-    setSelectedTrailer(null);
-  };
-
   const handleSubmitReview = async (e) => {
     e.preventDefault();
-    if (!reviewText.trim() || !reviewName.trim() || !reviewEmail.trim()) {
-      setError('Please fill all fields (name, email, review).');
+    if (!reviewText.trim() || !reviewName.trim() || !reviewEmail.trim() || !reviewRating) {
+      setError('Please fill all fields (name, email, review, rating).');
       return;
     }
     if (!emailRegex.test(reviewEmail)) {
@@ -126,26 +120,17 @@ function MovieDetails() {
       return;
     }
     try {
-      await submitReview(source, externalId, { text: reviewText, name: reviewName, email: reviewEmail });
+      await submitReview(source, externalId, { text: reviewText, name: reviewName, email: reviewEmail, rating: parseInt(reviewRating) });
       const reviewsResponse = await getReviews(source, externalId);
       setReviews(Array.isArray(reviewsResponse.data) ? reviewsResponse.data : []);
       setReviewText('');
       setReviewName('');
       setReviewEmail('');
+      setReviewRating('');
       setError(null);
     } catch (err) {
       setError(err.response?.data?.msg || 'Failed to submit review. Check console for details.');
-    }
-  };
-
-  const handleReaction = async (reaction) => {
-    try {
-      await submitReaction(source, externalId, reaction);
-      const response = await getMovieDetails(source, externalId);
-      setReactionCounts(response.data.reactionCounts || { excellent: 0, good: 0, average: 0, sad: 0 });
-      setError(null);
-    } catch (err) {
-      setError(err.response?.data?.msg || 'Failed to submit reaction. Check console for details.');
+      console.error('Submit review error:', err.response?.data || err);
     }
   };
 
@@ -171,6 +156,44 @@ function MovieDetails() {
       setError(err.response?.data?.msg || 'Failed to submit reply. Check console for details.');
     }
   };
+
+  const handleReaction = async (reaction) => {
+    if (userReactions[externalId]) {
+      console.log(`User ${userId} has already reacted with ${userReactions[externalId]} to ${externalId}`);
+      return;
+    }
+
+    try {
+      const response = await fetch(`/api/movies/reactions/${source}/${externalId}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ reaction, userId }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        setError(errorData.msg || 'Failed to submit reaction.');
+        console.error('Reaction error:', errorData.msg);
+        return;
+      }
+
+      const data = await response.json();
+      console.log('Reaction response:', data);
+
+      const newUserReactions = { ...userReactions, [externalId]: reaction };
+      setUserReactions(newUserReactions);
+      localStorage.setItem('userReactions', JSON.stringify(newUserReactions));
+      setError(null);
+    } catch (err) {
+      console.error('Reaction error:', err);
+      setError('Failed to submit reaction. Check console for details.');
+    }
+  };
+
+  // Calculate total user rating
+  const totalUserRating = reviews.length > 0
+    ? (reviews.reduce((sum, review) => sum + (review.rating || 0), 0) / reviews.length).toFixed(1)
+    : 'N/A';
 
   if (loading) {
     return (
@@ -201,32 +224,46 @@ function MovieDetails() {
         <meta name="description" content={movie?.overview || 'View movie details on MovieVerse'} />
       </Helmet>
 
-      {selectedTrailer && (
-        <div className="trailer-modal" style={{ position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', background: 'rgba(0,0,0,0.8)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 1000 }}>
-          <div className="trailer-modal-content" style={{ position: 'relative', width: '80%', maxWidth: '800px', aspectRatio: '16/9' }}>
-            <button className="trailer-modal-close" onClick={closeTrailerModal} style={{ position: 'absolute', top: '10px', right: '10px', fontSize: '24px', color: '#fff', background: 'none', border: 'none', cursor: 'pointer' }}>×</button>
-            <iframe
-              width="100%"
-              height="100%"
-              src={selectedTrailer.replace('watch?v=', 'embed/')}
-              title="Movie Trailer"
-              frameBorder="0"
-              allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-              allowFullScreen
-            ></iframe>
-          </div>
-        </div>
-      )}
-
       <header className="details-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 20px', width: '100%', boxSizing: 'border-box' }}>
         <Link to="/" className="home-link" style={{ textDecoration: 'none' }}>
-          <h1 className="logo" style={{ fontSize: '2.5rem', fontWeight: 700, color: '#fff', margin: '10px 0', transition: 'font-size 0.3s ease' }}>MovieVerse</h1>
+          <h1
+            className="logo"
+            style={{
+              fontSize: '2em',
+              fontWeight: 'bold',
+              color: '#ff0000',
+              margin: '10px 0',
+              cursor: 'pointer',
+              transition: 'font-size 0.3s ease',
+            }}
+            aria-label="Go to homepage"
+          >
+            MovieVerse 2.0
+          </h1>
         </Link>
       </header>
 
       <div className="movie-content" style={{ marginTop: '20px' }}>
         {movie && (
           <>
+            {movie.trailer && movie.trailer !== 'N/A' && (
+              <div className="trailer-section" style={{ margin: '20px 0', textAlign: 'center' }}>
+                <iframe
+                  width="100%"
+                  height="500"
+                  src={movie.trailer.replace('watch?v=', 'embed/') + '?autoplay=0'}
+                  title={`${movie.title} Trailer`}
+                  frameBorder="0"
+                  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                  allowFullScreen
+                  style={{ maxWidth: '800px', borderRadius: '8px' }}
+                ></iframe>
+                <a href={movie.trailer} target="_blank" rel="noopener noreferrer" style={{ color: '#1a73e8', textDecoration: 'none', marginTop: '10px', display: 'inline-block' }}>
+                  Watch on YouTube
+                </a>
+              </div>
+            )}
+
             <h1 style={{ fontSize: '2rem', fontWeight: 600, color: '#333', margin: '20px 0', textAlign: 'center', transition: 'font-size 0.3s ease' }}>{movie.title || 'Untitled Movie'}</h1>
             <div className="movie-poster" style={{ display: 'flex', justifyContent: 'center', margin: '20px 0' }}>
               <LazyLoad height={450}>
@@ -291,44 +328,7 @@ function MovieDetails() {
               )}
             </div>
 
-            <div className="reactions" style={{ margin: '20px 0' }}>
-              <h2 style={{ fontSize: '1.8rem', fontWeight: 600, color: '#333', marginBottom: '10px', transition: 'font-size 0.3s ease' }}>Reactions</h2>
-              <div className="reaction-buttons" style={{ display: 'flex', gap: '10px', flexWrap: 'wrap', justifyContent: 'center' }}>
-                {['excellent', 'good', 'average', 'sad'].map((reaction) => (
-                  <button
-                    key={reaction}
-                    className="cta-button"
-                    onClick={() => handleReaction(reaction)}
-                    disabled={reactionCounts[reaction] > 0}
-                    aria-label={`React with ${reaction} to ${movie.title}`}
-                    style={{
-                      fontSize: '0.9rem',
-                      padding: '8px 12px',
-                      opacity: reactionCounts[reaction] > 0 ? 0.6 : 1,
-                    }}
-                  >
-                    {{
-                      excellent: 'Excellent 👍',
-                      good: 'Good 😊',
-                      average: 'Average 😐',
-                      sad: 'Sad 😢'
-                    }[reaction]} ({reactionCounts[reaction] || 0})
-                  </button>
-                ))}
-              </div>
-            </div>
-
             <div className="actions" style={{ margin: '20px 0', display: 'flex', gap: '10px', justifyContent: 'center' }}>
-              {movie.trailer && movie.trailer !== 'N/A' && (
-                <button
-                  className="cta-button"
-                  onClick={() => openTrailerModal(movie.trailer)}
-                  style={{ padding: '10px 20px', fontSize: '1rem' }}
-                  aria-label={`Play trailer for ${movie.title}`}
-                >
-                  Play Trailer
-                </button>
-              )}
               {watchlist.some((m) => m.externalId === movie.externalId && m.source === movie.source) ? (
                 <button
                   className="cta-button"
@@ -350,6 +350,54 @@ function MovieDetails() {
               )}
             </div>
 
+            <div className="reactions" style={{ margin: '20px 0', display: 'flex', gap: '10px', justifyContent: 'center', flexWrap: 'wrap' }}>
+              <button
+                className="cta-button"
+                onClick={() => handleReaction('excellent')}
+                disabled={!!userReactions[externalId]}
+                style={{ padding: '10px', fontSize: '1rem', background: userReactions[externalId] === 'excellent' ? '#ffd700' : '#4CAF50', display: 'flex', alignItems: 'center' }}
+                aria-label="React with excellent"
+              >
+                <span style={{ marginRight: '5px' }}>excellent</span> 👍
+              </button>
+              <button
+                className="cta-button"
+                onClick={() => handleReaction('good')}
+                disabled={!!userReactions[externalId]}
+                style={{ padding: '10px', fontSize: '1rem', background: userReactions[externalId] === 'good' ? '#ffd700' : '#2196F3', display: 'flex', alignItems: 'center' }}
+                aria-label="React with good"
+              >
+                <span style={{ marginRight: '5px' }}>good</span> 😊
+              </button>
+              <button
+                className="cta-button"
+                onClick={() => handleReaction('average')}
+                disabled={!!userReactions[externalId]}
+                style={{ padding: '10px', fontSize: '1rem', background: userReactions[externalId] === 'average' ? '#ffd700' : '#ff9800', display: 'flex', alignItems: 'center' }}
+                aria-label="React with average"
+              >
+                <span style={{ marginRight: '5px' }}>average</span> 😐
+              </button>
+              <button
+                className="cta-button"
+                onClick={() => handleReaction('sad')}
+                disabled={!!userReactions[externalId]}
+                style={{ padding: '10px', fontSize: '1rem', background: userReactions[externalId] === 'sad' ? '#ffd700' : '#f44336', display: 'flex', alignItems: 'center' }}
+                aria-label="React with sad"
+              >
+                <span style={{ marginRight: '5px' }}>sad</span> 😢
+              </button>
+              <button
+                className="cta-button"
+                onClick={() => handleReaction('horror')}
+                disabled={!!userReactions[externalId]}
+                style={{ padding: '10px', fontSize: '1rem', background: userReactions[externalId] === 'horror' ? '#ffd700' : '#9C27B0', display: 'flex', alignItems: 'center' }}
+                aria-label="React with horror"
+              >
+                <span style={{ marginRight: '5px' }}>horror</span> 👻
+              </button>
+            </div>
+
             <div className="movie-info" style={{ margin: '20px 0', fontSize: '1rem', lineHeight: '1.5' }}>
               <p><strong>IMDb Rating:</strong> {movie.imdbRating || 'N/A'}</p>
               <p><strong>Release Date:</strong> {movie.releaseDate || 'N/A'}</p>
@@ -368,6 +416,11 @@ function MovieDetails() {
 
             <div className="reviews-section" style={{ margin: '20px 0' }}>
               <h2 style={{ fontSize: '1.8rem', fontWeight: 600, color: '#333', marginBottom: '10px', transition: 'font-size 0.3s ease' }}>Reviews</h2>
+              {totalUserRating !== 'N/A' && (
+                <p style={{ fontSize: '1.2rem', fontWeight: 600, color: '#333', marginBottom: '10px' }}>
+                  Total User Rating: {totalUserRating}/10
+                </p>
+              )}
               <form onSubmit={handleSubmitReview} style={{ marginBottom: '20px', display: 'flex', flexDirection: 'column', gap: '10px' }}>
                 <input
                   type="text"
@@ -392,6 +445,17 @@ function MovieDetails() {
                   style={{ padding: '8px', fontSize: '1rem', borderRadius: '4px', border: '1px solid #ccc', minHeight: '100px', resize: 'vertical' }}
                   aria-label="Your review text"
                 ></textarea>
+                <select
+                  value={reviewRating}
+                  onChange={(e) => setReviewRating(e.target.value)}
+                  style={{ padding: '8px', fontSize: '1rem', borderRadius: '4px', border: '1px solid #ccc' }}
+                  aria-label="Your rating (1-10)"
+                >
+                  <option value="">Select Rating (1-10)</option>
+                  {[...Array(10)].map((_, i) => (
+                    <option key={i + 1} value={i + 1}>{i + 1}</option>
+                  ))}
+                </select>
                 <button type="submit" className="cta-button" style={{ padding: '10px 20px', fontSize: '1rem' }} aria-label="Submit review">
                   Submit Review
                 </button>
@@ -402,6 +466,9 @@ function MovieDetails() {
                   <div key={review._id} className="review" style={{ marginBottom: '20px', padding: '10px', border: '1px solid #eee', borderRadius: '4px' }}>
                     <p style={{ fontSize: '1rem', fontWeight: 'bold', marginBottom: '5px' }}>{review.name}</p>
                     <p style={{ fontSize: '0.9rem', color: '#666', marginBottom: '5px' }}>{formatTimestamp(review.createdAt)}</p>
+                    {review.rating && (
+                      <p style={{ fontSize: '1rem', marginBottom: '5px' }}><strong>Rating:</strong> {review.rating}/10</p>
+                    )}
                     <p style={{ fontSize: '1rem', marginBottom: '10px' }}>{review.text}</p>
                     {review.replies && review.replies.length > 0 && (
                       <div className="replies" style={{ marginLeft: '20px', paddingLeft: '10px', borderLeft: '2px solid #eee' }}>

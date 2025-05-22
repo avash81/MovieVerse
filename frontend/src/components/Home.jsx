@@ -2,7 +2,7 @@ import { useState, useEffect, useMemo } from 'react';
 import { Link } from 'react-router-dom';
 import { Helmet } from 'react-helmet';
 import LazyLoad from 'react-lazyload';
-import { getCategory, getNotices } from '../api/api';
+import { getCategory, getNotices, getReviews } from '../api/api';
 import '../styles.css';
 
 function Home() {
@@ -35,58 +35,7 @@ function Home() {
   const [featuredMovie, setFeaturedMovie] = useState(null);
   const [showSearch, setShowSearch] = useState(false);
   const [quickViewMovie, setQuickViewMovie] = useState(null);
-  const [reactionCounts, setReactionCounts] = useState({});
-  const [userReactions, setUserReactions] = useState(JSON.parse(localStorage.getItem('userReactions')) || {});
-
-  // Generate or retrieve a temporary user ID
-  const userId = localStorage.getItem('tempUserId') || (() => {
-    const id = 'user_' + Math.random().toString(36).substr(2, 9);
-    localStorage.setItem('tempUserId', id);
-    return id;
-  })();
-
-  const handleReaction = async (externalId, reactionType) => {
-    try {
-      // Check if user has already reacted
-      if (userReactions[`${externalId}`]) {
-        console.log(`User ${userId} has already reacted to ${externalId}`);
-        return;
-      }
-
-      const response = await fetch(`/api/movies/reactions/tmdb/${externalId}`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ reaction: reactionType, userId }),
-      });
-
-      if (!response.ok) {
-        const errorData = await response.json();
-        console.error('Reaction error:', errorData.msg);
-        return;
-      }
-
-      const data = await response.json();
-      setReactionCounts(prev => ({
-        ...prev,
-        [externalId]: {
-          ...(prev[externalId] || {}),
-          ...data.reactionCounts,
-        },
-      }));
-
-      // Update local user reactions
-      const newUserReactions = {
-        ...userReactions,
-        [`${externalId}`]: reactionType,
-      };
-      setUserReactions(newUserReactions);
-      localStorage.setItem('userReactions', JSON.stringify(newUserReactions));
-
-      console.log(`Reaction ${reactionType} recorded for ${externalId} by user ${userId}`);
-    } catch (error) {
-      console.error('Reaction error:', error);
-    }
-  };
+  const [reviewCounts, setReviewCounts] = useState({});
 
   const trackClick = (action, movieId, movieTitle) => {
     console.log('Tracking click:', { action, movieId, movieTitle });
@@ -165,29 +114,27 @@ function Home() {
 
       if (newMoviesByCategory['trending'] && newMoviesByCategory['trending'].length > 0) {
         const trendingMovies = newMoviesByCategory['trending'];
-        setFeaturedMovie(trendingMovies[Math.floor(Math.random() * trendingMovies.length)]);
+        const randomFeatured = trendingMovies[Math.floor(Math.random() * trendingMovies.length)];
+        setFeaturedMovie(randomFeatured);
+
+        // Fetch review counts for all movies
+        const counts = {};
+        for (const category of categories) {
+          const movies = newMoviesByCategory[category.id] || [];
+          for (const movie of movies) {
+            try {
+              const reviewsResponse = await fetchWithTimeout(getReviews, movie.source, movie.externalId);
+              counts[movie.externalId] = Array.isArray(reviewsResponse.data) ? reviewsResponse.data.length : 0;
+            } catch (err) {
+              console.error(`Error fetching reviews for ${movie.source}/${movie.externalId}:`, err);
+              counts[movie.externalId] = 0;
+            }
+          }
+        }
+        setReviewCounts(counts);
       }
 
       setLoading(false);
-      const counts = {};
-      for (const category of categories) {
-        const movies = newMoviesByCategory[category.id] || [];
-        for (const movie of movies) {
-          try {
-            const res = await fetch(`/api/movies/details/${movie.source}/${movie.externalId}`);
-            if (res.ok) {
-              counts[movie.externalId] = (await res.json()).reactionCounts || {};
-            } else {
-              console.warn(`Failed to fetch details for ${movie.source}/${movie.externalId}: ${res.status}`);
-              counts[movie.externalId] = { excellent: 0, good: 0, average: 0, sad: 0 };
-            }
-          } catch (err) {
-            console.error(`Error fetching details for ${movie.source}/${movie.externalId}:`, err);
-            counts[movie.externalId] = { excellent: 0, good: 0, average: 0, sad: 0 };
-          }
-        }
-      }
-      setReactionCounts(counts);
     };
 
     fetchData();
@@ -203,7 +150,6 @@ function Home() {
         .slice(0, 20);
       setSearchSuggestions(results.slice(0, 5));
       setSearchResults(results);
-      // Scroll to search results immediately
       const searchResultsElement = document.getElementById('search-results');
       if (searchResultsElement) {
         searchResultsElement.scrollIntoView({ behavior: 'smooth', block: 'start' });
@@ -310,6 +256,7 @@ function Home() {
           </LazyLoad>
           <div className="movie-overlay">
             <p>IMDb Rating: {movie.imdbRating || 'N/A'}</p>
+            <p>Total Number of Reviews: {reviewCounts[movie.externalId] || 0}</p>
             <Link
               to={`/movies/${movie.source}/${movie.externalId}`}
               onClick={() => trackClick('view_details', movie.externalId, movie.title)}
@@ -359,39 +306,6 @@ function Home() {
                 Add to Watchlist
               </button>
             )}
-            <div className="reaction-buttons" style={{ 
-              display: 'flex', 
-              gap: '5px', 
-              marginTop: '10px',
-              flexWrap: 'wrap',
-              justifyContent: 'center'
-            }}>
-              {['excellent', 'good', 'average', 'sad'].map((reaction) => (
-                <button
-                  key={reaction}
-                  className="cta-button"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    handleReaction(movie.externalId, reaction);
-                  }}
-                  disabled={!!userReactions[`${movie.externalId}`]}
-                  aria-label={`React with ${reaction} to ${movie.title}`}
-                  style={{
-                    fontSize: '12px',
-                    padding: '5px 8px',
-                    opacity: userReactions[`${movie.externalId}`] ? 0.6 : 1,
-                  }}
-                  title={userReactions[`${movie.externalId}`] ? `You reacted: ${userReactions[`${movie.externalId}`]}` : ''}
-                >
-                  {{
-                    excellent: 'Excellent 👍',
-                    good: 'Good 😊', 
-                    average: 'Average 😐',
-                    sad: 'Sad 😢'
-                  }[reaction]} ({reactionCounts[movie.externalId]?.[reaction] || 0})
-                </button>
-              ))}
-            </div>
           </div>
         </div>
         <div className="movie-info" style={{ marginTop: '10px' }}>
@@ -596,7 +510,9 @@ function Home() {
           <div className="hero-overlay" style={{ position: 'relative', zIndex: 2, color: '#fff', textAlign: 'center', paddingTop: '20vh', background: 'rgba(0, 0, 0, 0.5)' }}>
             <div className="hero-content">
               <h2 style={{ fontSize: '2.5em', marginBottom: '10px' }}>{featuredMovie.title}</h2>
-              <p style={{ fontSize: '1.2em', marginBottom: '20px' }}>{featuredMovie.imdbRating || 'N/A'}</p>
+              <p style={{ fontSize: '1.2em', marginBottom: '20px' }}>
+                IMDb Rating: {featuredMovie.imdbRating || 'N/A'} | Total Number of Reviews: {reviewCounts[featuredMovie.externalId] || 0}
+              </p>
               <div className="hero-buttons">
                 {featuredMovie.trailer && featuredMovie.trailer !== 'N/A' && (
                   <button
@@ -635,30 +551,6 @@ function Home() {
                     Add to Watchlist
                   </button>
                 )}
-                <div className="reaction-buttons" style={{ display: 'flex', gap: '5px', marginTop: '10px', justifyContent: 'center' }}>
-                  {['excellent', 'good', 'average', 'sad'].map((reaction) => (
-                    <button
-                      key={reaction}
-                      className="cta-button"
-                      onClick={() => handleReaction(featuredMovie.externalId, reaction)}
-                      disabled={!!userReactions[`${featuredMovie.externalId}`]}
-                      aria-label={`React with ${reaction} to ${featuredMovie.title}`}
-                      style={{
-                        fontSize: '12px',
-                        padding: '5px 8px',
-                        opacity: userReactions[`${featuredMovie.externalId}`] ? 0.6 : 1,
-                      }}
-                      title={userReactions[`${featuredMovie.externalId}`] ? `You reacted: ${userReactions[`${featuredMovie.externalId}`]}` : ''}
-                    >
-                      {{
-                        excellent: 'Excellent 👍',
-                        good: 'Good 😊',
-                        average: 'Average 😐',
-                        sad: 'Sad 😢'
-                      }[reaction]} ({reactionCounts[featuredMovie.externalId]?.[reaction] || 0})
-                    </button>
-                  ))}
-                </div>
               </div>
             </div>
           </div>

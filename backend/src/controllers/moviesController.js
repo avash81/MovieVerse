@@ -206,13 +206,11 @@ const handleReaction = async (req, res) => {
       return res.status(404).json({ msg: 'Movie not found' });
     }
 
-    // Check if user has already reacted
     const existingReaction = movie.userReactions.find(r => r.userId === userId);
     if (existingReaction) {
       return res.status(400).json({ msg: 'User has already submitted a reaction for this movie' });
     }
 
-    // Add user reaction and increment reaction count
     movie.userReactions.push({ userId, reaction });
     movie.reactionCounts[reaction] = (movie.reactionCounts[reaction] || 0) + 1;
 
