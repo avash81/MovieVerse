@@ -26,13 +26,14 @@ const movieSchema = new mongoose.Schema({
   directLink: { type: String, default: null },
   createdAt: { type: Date, default: Date.now },
   reactionCounts: {
-    type: Object,
-    default: { excellent: 0, loved: 0, thanks: 0, wow: 0, sad: 0 },
+    type: Map,
+    of: Number,
+    default: { excellent: 0, good: 0, average: 0, sad: 0 }
   },
   screenshots: {
     type: [String],
-    default: [],
-  },
-});
+    default: []
+  }
+}, { strict: true });
 
 module.exports = mongoose.model('Movie', movieSchema);

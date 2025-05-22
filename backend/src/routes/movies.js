@@ -1,12 +1,12 @@
 const express = require('express');
 const router = express.Router();
+const moviesController = require('../controllers/moviesController');
 const axios = require('axios');
 const Movie = require('../models/Movie');
 
 const TMDB_API_KEY = process.env.TMDB_API_KEY;
 const TMDB_BASE_URL = 'https://api.themoviedb.org/3';
 
-// Use MongoDB to store reactions instead of in-memory storage
 const reactionData = {};
 
 const genreMap = {
@@ -50,7 +50,7 @@ router.get('/', (req, res) => {
 
 router.get('/categories/:categoryId', async (req, res) => {
   const { categoryId } = req.params;
-  console.log('Fetching movies for category:', categoryId);
+  console.log(`[Movies Route] GET /categories/${categoryId}`);
 
   try {
     if (!TMDB_API_KEY) {
@@ -144,154 +144,42 @@ router.get('/categories/:categoryId', async (req, res) => {
   }
 });
 
-router.get('/details/:source/:externalId', async (req, res) => {
-  const { source, externalId } = req.params;
-  console.log(`Fetching details for ${source}:${externalId}`);
-
-  try {
-    if (!TMDB_API_KEY) {
-      console.error('TMDB_API_KEY is not defined');
-      return res.status(500).json({ msg: 'Server configuration error: TMDB_API_KEY missing' });
-    }
-
-    if (source !== 'tmdb') {
-      console.error('Invalid source:', source);
-      return res.status(400).json({ msg: 'Invalid source' });
-    }
-
-    const cachedMovie = await Movie.findOne({ source, externalId });
-    if (cachedMovie && cachedMovie.screenshots?.length > 0) {
-      console.log(`Serving movie details from cache: ${externalId}`);
-      return res.json(cachedMovie);
-    }
-
-    const endpoint = `/movie/${externalId}`;
-    const params = {
-      api_key: TMDB_API_KEY,
-      append_to_response: 'credits,videos,images',
-    };
-
-    console.log(`Fetching from TMDB: ${endpoint}`, params);
-    const response = await axios.get(`${TMDB_BASE_URL}${endpoint}`, {
-      params,
-      timeout: 5000,
-    });
-
-    const data = response.data;
-
-    const screenshots = data.images?.backdrops?.slice(0, 5).map(img => 
-      `https://image.tmdb.org/t/p/w500${img.file_path}`
-    ) || [];
-
-    const movie = {
-      source: 'tmdb',
-      externalId: data.id.toString(),
-      title: data.title,
-      poster: data.poster_path ? `https://image.tmdb.org/t/p/w500${data.poster_path}` : 'https://placehold.co/300x450?text=No+Poster',
-      imdbRating: data.vote_average ? data.vote_average.toFixed(1) : 'N/A',
-      releaseDate: data.release_date || 'N/A',
-      overview: data.overview || 'No overview available',
-      genres: data.genres ? data.genres.map(g => g.name).join(', ') : 'N/A',
-      director: data.credits?.crew?.find(c => c.job === 'Director')?.name || 'N/A',
-      cast: data.credits?.cast?.slice(0, 5).map(c => c.name).join(', ') || 'N/A',
-      runtime: data.runtime ? `${data.runtime} min` : 'N/A',
-      budget: data.budget ? `$${data.budget.toLocaleString()}` : 'N/A',
-      revenue: data.revenue ? `$${data.revenue.toLocaleString()}` : 'N/A',
-      productionCompanies: data.production_companies ? data.production_companies.map(c => c.name).join(', ') : 'N/A',
-      language: data.original_language || 'N/A',
-      country: data.production_countries ? data.production_countries.map(c => c.name).join(', ') : 'N/A',
-      status: data.status || 'N/A',
-      tagline: data.tagline || 'N/A',
-      trailer: data.videos?.results?.find(v => v.type === 'Trailer' && v.site === 'YouTube')?.key
-        ? `https://www.youtube.com/watch?v=${data.videos.results.find(v => v.type === 'Trailer' && v.site === 'YouTube').key}`
-        : 'N/A',
-      watchProviders: data.watch_providers?.results || {},
-      directLink: null,
-      genre_ids: data.genre_ids || [],
-      reactionCounts: cachedMovie?.reactionCounts || { excellent: 0, loved: 0, thanks: 0, wow: 0, sad: 0 },
-      screenshots,
-    };
-
-    await Movie.findOneAndUpdate(
-      { source: movie.source, externalId: movie.externalId },
-      movie,
-      { upsert: true, new: true }
-    );
-
-    await delay(500);
-    res.json(movie);
-  } catch (err) {
-    console.error(`Error fetching movie ${source}:${externalId}:`, {
-      message: err.message,
-      status: err.response?.status,
-      data: err.response?.data,
-    });
-
-    if (err.response?.status === 429) {
-      return res.status(429).json({ msg: 'TMDB rate limit exceeded. Please try again later.' });
-    } else if (err.response?.status === 401) {
-      return res.status(401).json({ msg: 'Invalid TMDB API key.' });
-    } else if (err.response?.status === 404) {
-      return res.status(404).json({ msg: 'Movie not found.' });
-    }
-
-    res.status(500).json({ msg: 'Failed to fetch movie details. Please try again.' });
-  }
+router.get('/details/:source/:externalId', (req, res, next) => {
+  console.log(`[Movies Route] GET /details/${req.params.source}/${req.params.externalId}`);
+  moviesController.getMovieDetails(req, res, next);
 });
 
-router.post('/reactions/:source/:externalId', async (req, res) => {
-  try {
-    const { source, externalId } = req.params;
-    const { reaction } = req.body;
-
-    if (!['excellent', 'loved', 'thanks', 'wow', 'sad'].includes(reaction)) {
-      return res.status(400).json({ msg: 'Invalid reaction type' });
-    }
-
-    const movie = await Movie.findOne({ source, externalId });
-    if (!movie) {
-      return res.status(404).json({ msg: 'Movie not found' });
-    }
-
-    movie.reactionCounts = movie.reactionCounts || { excellent: 0, loved: 0, thanks: 0, wow: 0, sad: 0 };
-    movie.reactionCounts[reaction] = (movie.reactionCounts[reaction] || 0) + 1;
-
-    await movie.save();
-
-    console.log(`Reaction added for ${source}:${externalId}:`, movie.reactionCounts);
-    res.status(200).json({ reactionCounts: movie.reactionCounts });
-  } catch (err) {
-    console.error('Error in reactions route:', err);
-    res.status(500).json({ msg: 'Server error' });
-  }
+router.post('/reactions/:source/:externalId', (req, res, next) => {
+  console.log(`[Movies Route] POST /reactions/${req.params.source}/${req.params.externalId}`);
+  moviesController.handleReaction(req, res, next);
 });
 
 router.get('/reactions/:source/:externalId', async (req, res) => {
   try {
     const { source, externalId } = req.params;
+    console.log(`[Movies Route] GET /reactions/${source}/${externalId}`);
     const movie = await Movie.findOne({ source, externalId });
     if (!movie) {
       return res.status(404).json({ msg: 'Movie not found' });
     }
-    const reactions = movie.reactionCounts || { excellent: 0, loved: 0, thanks: 0, wow: 0, sad: 0 };
+    const reactions = Object.fromEntries(movie.reactionCounts || new Map());
     res.status(200).json(reactions);
   } catch (err) {
-    console.error('Error fetching reactions:', err);
+    console.error('Error fetching reactions:', err.message, err.stack);
     res.status(500).json({ msg: 'Server error' });
   }
 });
 
-// Add route for notices
 router.get('/notices', async (req, res) => {
   try {
-    // Replace with actual logic to fetch notices (e.g., from a database)
+    console.log('[Movies Route] GET /notices');
     const notices = [
       { id: 1, message: 'Welcome to MovieVerse! Check out the latest movies.' },
       { id: 2, message: 'New features coming soon!' },
     ];
     res.status(200).json(notices);
   } catch (err) {
-    console.error('Error fetching notices:', err);
+    console.error('Error fetching notices:', err.message, err.stack);
     res.status(500).json({ msg: 'Server error' });
   }
 });

@@ -35,6 +35,27 @@ function Home() {
   const [featuredMovie, setFeaturedMovie] = useState(null);
   const [showSearch, setShowSearch] = useState(false);
   const [quickViewMovie, setQuickViewMovie] = useState(null);
+  const [reactionCounts, setReactionCounts] = useState({});
+
+  const handleReaction = async (externalId, reactionType) => {
+    try {
+      const response = await fetch(`/api/movies/reactions/tmdb/${externalId}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ reaction: reactionType }),
+      });
+      const data = await response.json();
+      setReactionCounts(prev => ({
+        ...prev,
+        [externalId]: {
+          ...(prev[externalId] || {}),
+          ...data.reactionCounts
+        }
+      }));
+    } catch (error) {
+      console.error('Reaction error:', error);
+    }
+  };
 
   const trackClick = (action, movieId, movieTitle) => {
     console.log('Tracking click:', { action, movieId, movieTitle });
@@ -105,7 +126,6 @@ function Home() {
               : `Error loading ${category.name}: Failed to load.`
           );
         }
-        // Increased delay to 1000ms to avoid TMDB rate limits and browser resource issues (e.g., ERR_INSUFFICIENT_RESOURCES)
         await new Promise((resolve) => setTimeout(resolve, 1000));
       }
 
@@ -118,6 +138,19 @@ function Home() {
       }
 
       setLoading(false);
+      const counts = {};
+      for (const category of categories) {
+        const movies = newMoviesByCategory[category.id] || [];
+        for (const movie of movies) {
+          try {
+            const res = await fetch(`/api/movies/details/${movie.source}/${movie.externalId}`);
+            counts[movie.externalId] = res.ok ? (await res.json()).reactionCounts || {} : {};
+          } catch {
+            counts[movie.externalId] = {};
+          }
+        }
+      }
+      setReactionCounts(counts);
     };
 
     fetchData();
@@ -202,114 +235,143 @@ function Home() {
     return categories;
   }, [activeCategory, searchQuery, categories]);
 
- const renderMovieCard = (movie, categoryId, index) => {
-  // Safely handle genres
-  let genresString = 'N/A'; // Default fallback
-  if (movie.genres) {
-    if (Array.isArray(movie.genres)) {
-      // Check if genres is an array of objects (TMDB format) or strings
-      genresString = movie.genres
-        .map(genre => (typeof genre === 'object' && genre.name ? genre.name : genre))
-        .join(', ');
-    } else if (typeof movie.genres === 'string') {
-      // If genres is a string (OMDB format)
-      genresString = movie.genres;
+  const renderMovieCard = (movie, categoryId, index) => {
+    let genresString = 'N/A';
+    if (movie.genres) {
+      if (Array.isArray(movie.genres)) {
+        genresString = movie.genres
+          .map(genre => (typeof genre === 'object' && genre.name ? genre.name : genre))
+          .join(', ');
+      } else if (typeof movie.genres === 'string') {
+        genresString = movie.genres;
+      }
     }
-  }
 
-  return (
-    <div key={`${categoryId}-${movie.source}-${movie.externalId}-${index}`} className="movie-card">
-      <div
-        className="movie-poster"
-        onClick={() => openTrailerModal(movie.trailer)}
-        role="button"
-        tabIndex={0}
-        onKeyPress={(e) => e.key === 'Enter' && openTrailerModal(movie.trailer)}
-        aria-label={`Play trailer for ${movie.title}`}
-      >
-        <LazyLoad height={300}>
-          <img
-            src={movie.poster}
-            alt={movie.title}
-            onError={(e) => handleImageError(e, movie.title)}
-          />
-        </LazyLoad>
-        <div className="movie-overlay">
-          <p>IMDb Rating: {movie.imdbRating || 'N/A'}</p>
-          <Link
-            to={`/movies/${movie.source}/${movie.externalId}`} // Fixed to use client-side routing path
-            onClick={() => trackClick('view_details', movie.externalId, movie.title)}
-          >
-            <button
-              className="cta-button"
-              aria-label={`View details for ${movie.title}`}
-            >
-              View Details
-            </button>
-          </Link>
-          {movie.watchProviders?.US?.ads?.length > 0 && (
-            <div className="watch-free">
-              <h4>Watch for Free on:</h4>
-              <ul>
-                {movie.watchProviders.US.ads.map((provider, index) => (
-                  <li key={index}>{provider.provider_name}</li>
-                ))}
-              </ul>
-            </div>
-          )}
-          {movie.directLink && (
-            <a href={movie.directLink} target="_blank" rel="noopener noreferrer" className="watch-now" aria-label={`Watch ${movie.title} on Internet Archive`}>
-              Watch Now
-            </a>
-          )}
-          {watchlist.some((m) => m.externalId === movie.externalId && m.source === movie.source) ? (
-            <button
-              className="cta-button"
-              onClick={(e) => {
-                e.stopPropagation();
-                handleRemoveFromWatchlist(movie.externalId, movie.source);
-              }}
-              aria-label={`Remove ${movie.title} from watchlist`}
-            >
-              Remove from Watchlist
-            </button>
-          ) : (
-            <button
-              className="cta-button"
-              onClick={(e) => {
-                e.stopPropagation();
-                handleAddToWatchlist(movie);
-              }}
-              aria-label={`Add ${movie.title} to watchlist`}
-            >
-              Add to Watchlist
-            </button>
-          )}
-        </div>
-      </div>
-      <div className="movie-info" style={{ marginTop: '10px' }}>
-        <h3 style={{ margin: '0 0 5px 0' }}>{movie.title}</h3>
-        <div style={{ display: 'flex', alignItems: 'center', marginBottom: '5px' }}>
-          <span style={{ color: '#666', fontSize: '14px', marginRight: '5px' }}>
-            {movie.releaseYear || 'N/A'}
-          </span>
-          <span style={{ color: '#666', fontSize: '12px', marginRight: '5px' }}>•</span>
-          <span style={{ color: '#666', fontSize: '14px' }}>
-            {genresString}
-          </span>
-        </div>
-        <button
-          className="quick-view-btn"
-          onClick={() => openQuickView(movie)}
-          style={{ color: '#1a73e8', background: 'none', border: 'none', cursor: 'pointer', fontSize: '14px' }}
-          aria-label={`Quick view for ${movie.title}`}
+    return (
+      <div key={`${categoryId}-${movie.source}-${movie.externalId}-${index}`} className="movie-card">
+        <div
+          className="movie-poster"
+          onClick={() => openTrailerModal(movie.trailer)}
+          role="button"
+          tabIndex={0}
+          onKeyPress={(e) => e.key === 'Enter' && openTrailerModal(movie.trailer)}
+          aria-label={`Play trailer for ${movie.title}`}
         >
-          Quick View
-        </button>
+          <LazyLoad height={300}>
+            <img
+              src={movie.poster}
+              alt={movie.title}
+              onError={(e) => handleImageError(e, movie.title)}
+            />
+          </LazyLoad>
+          <div className="movie-overlay">
+            <p>IMDb Rating: {movie.imdbRating || 'N/A'}</p>
+            <Link
+              to={`/movies/${movie.source}/${movie.externalId}`}
+              onClick={() => trackClick('view_details', movie.externalId, movie.title)}
+            >
+              <button
+                className="cta-button"
+                aria-label={`View details for ${movie.title}`}
+              >
+                View Details
+              </button>
+            </Link>
+            {movie.watchProviders?.US?.ads?.length > 0 && (
+              <div className="watch-free">
+                <h4>Watch for Free on:</h4>
+                <ul>
+                  {movie.watchProviders.US.ads.map((provider, index) => (
+                    <li key={index}>{provider.provider_name}</li>
+                  ))}
+                </ul>
+              </div>
+            )}
+            {movie.directLink && (
+              <a href={movie.directLink} target="_blank" rel="noopener noreferrer" className="watch-now" aria-label={`Watch ${movie.title} on Internet Archive`}>
+                Watch Now
+              </a>
+            )}
+            {watchlist.some((m) => m.externalId === movie.externalId && m.source === movie.source) ? (
+              <button
+                className="cta-button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  handleRemoveFromWatchlist(movie.externalId, movie.source);
+                }}
+                aria-label={`Remove ${movie.title} from watchlist`}
+              >
+                Remove from Watchlist
+              </button>
+            ) : (
+              <button
+                className="cta-button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  handleAddToWatchlist(movie);
+                }}
+                aria-label={`Add ${movie.title} to watchlist`}
+              >
+                Add to Watchlist
+              </button>
+            )}
+            <div className="reaction-buttons" style={{ 
+              display: 'flex', 
+              gap: '5px', 
+              marginTop: '10px',
+              flexWrap: 'wrap',
+              justifyContent: 'center'
+            }}>
+              {['excellent', 'good', 'average', 'sad'].map((reaction) => (
+                <button
+                  key={reaction}
+                  className="cta-button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    handleReaction(movie.externalId, reaction);
+                  }}
+                  disabled={reactionCounts[movie.externalId]?.[reaction] > 0}
+                  aria-label={`React with ${reaction} to ${movie.title}`}
+                  style={{
+                    fontSize: '12px',
+                    padding: '5px 8px',
+                    opacity: reactionCounts[movie.externalId]?.[reaction] > 0 ? 0.6 : 1
+                  }}
+                >
+                  {{
+                    excellent: 'Excellent 👍',
+                    good: 'Good 😊', 
+                    average: 'Average 😐',
+                    sad: 'Sad 😢'
+                  }[reaction]} ({reactionCounts[movie.externalId]?.[reaction] || 0})
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+        <div className="movie-info" style={{ marginTop: '10px' }}>
+          <h3 style={{ margin: '0 0 5px 0' }}>{movie.title}</h3>
+          <div style={{ display: 'flex', alignItems: 'center', marginBottom: '5px' }}>
+            <span style={{ color: '#666', fontSize: '14px', marginRight: '5px' }}>
+              {movie.releaseYear || 'N/A'}
+            </span>
+            <span style={{ color: '#666', fontSize: '12px', marginRight: '5px' }}>•</span>
+            <span style={{ color: '#666', fontSize: '14px' }}>
+              {genresString}
+            </span>
+          </div>
+          <button
+            className="quick-view-btn"
+            onClick={() => openQuickView(movie)}
+            style={{ color: '#1a73e8', background: 'none', border: 'none', cursor: 'pointer', fontSize: '14px' }}
+            aria-label={`Quick view for ${movie.title}`}
+          >
+            Quick View
+          </button>
+        </div>
       </div>
-    </div>
-  );
-};
+    );
+  };
 
   return (
     <div className="home fade-in">
@@ -487,7 +549,7 @@ function Home() {
                   </button>
                 )}
                 <Link
-                  to={`/movies/${featuredMovie.source}/${featuredMovie.externalId}`} // Fixed to use client-side routing path
+                  to={`/movies/${featuredMovie.source}/${featuredMovie.externalId}`}
                   onClick={() => trackClick('view_details', featuredMovie.externalId, featuredMovie.title)}
                 >
                   <button
@@ -514,6 +576,29 @@ function Home() {
                     Add to Watchlist
                   </button>
                 )}
+                <div className="reaction-buttons" style={{ display: 'flex', gap: '5px', marginTop: '10px', justifyContent: 'center' }}>
+                  {['excellent', 'good', 'average', 'sad'].map((reaction) => (
+                    <button
+                      key={reaction}
+                      className="cta-button"
+                      onClick={() => handleReaction(featuredMovie.externalId, reaction)}
+                      disabled={reactionCounts[featuredMovie.externalId]?.[reaction] > 0}
+                      aria-label={`React with ${reaction} to ${featuredMovie.title}`}
+                      style={{
+                        fontSize: '12px',
+                        padding: '5px 8px',
+                        opacity: reactionCounts[featuredMovie.externalId]?.[reaction] > 0 ? 0.6 : 1
+                      }}
+                    >
+                      {{
+                        excellent: 'Excellent 👍',
+                        good: 'Good 😊',
+                        average: 'Average 😐',
+                        sad: 'Sad 😢'
+                      }[reaction]} ({reactionCounts[featuredMovie.externalId]?.[reaction] || 0})
+                    </button>
+                  ))}
+                </div>
               </div>
             </div>
           </div>

@@ -5,7 +5,6 @@ import LazyLoad from 'react-lazyload';
 import { getMovieDetails, getReviews, submitReview, submitReply, submitReaction } from '../api/api';
 import '../styles.css';
 
-// Utility to format timestamp like YouTube (e.g., "2 days ago")
 const formatTimestamp = (date) => {
   const now = new Date();
   const diffMs = now - new Date(date);
@@ -20,7 +19,6 @@ const formatTimestamp = (date) => {
   return 'Just now';
 };
 
-// Email validation regex
 const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 function MovieDetails() {
@@ -34,7 +32,7 @@ function MovieDetails() {
   const [reviewEmail, setReviewEmail] = useState('');
   const [watchlist, setWatchlist] = useState(JSON.parse(localStorage.getItem('watchlist')) || []);
   const [selectedTrailer, setSelectedTrailer] = useState(null);
-  const [reactionCounts, setReactionCounts] = useState({ excellent: 0, loved: 0, thanks: 0, wow: 0, sad: 0 });
+  const [reactionCounts, setReactionCounts] = useState({ excellent: 0, good: 0, average: 0, sad: 0 });
   const [replyingTo, setReplyingTo] = useState(null);
   const [replyText, setReplyText] = useState('');
   const [replyName, setReplyName] = useState('');
@@ -62,7 +60,7 @@ function MovieDetails() {
         setMovie(movieResponse.data);
         setReviews(Array.isArray(reviewsResponse.data) ? reviewsResponse.data : []);
         setReactionCounts(
-          movieResponse.data.reactionCounts || { excellent: 0, loved: 0, thanks: 0, wow: 0, sad: 0 }
+          movieResponse.data.reactionCounts || { excellent: 0, good: 0, average: 0, sad: 0 }
         );
         setError(null);
       } catch (err) {
@@ -143,8 +141,8 @@ function MovieDetails() {
   const handleReaction = async (reaction) => {
     try {
       await submitReaction(source, externalId, reaction);
-      const response = await getMovieDetails(source, externalId); // Fetch updated reaction counts
-      setReactionCounts(response.data.reactionCounts || reactionCounts);
+      const response = await getMovieDetails(source, externalId);
+      setReactionCounts(response.data.reactionCounts || { excellent: 0, good: 0, average: 0, sad: 0 });
       setError(null);
     } catch (err) {
       setError(err.response?.data?.msg || 'Failed to submit reaction. Check console for details.');
@@ -251,8 +249,8 @@ function MovieDetails() {
                         <LazyLoad height={300}>
                           <img
                             src={screenshot || 'https://placehold.co/200x300?text=No+Screenshot'}
-                            alt={`${movie.title} Screenshot ${index + 1}`}
-                            onError={(e) => handleImageError(e, `${movie.title} Screenshot ${index + 1}`)}
+                            alt={`${movie.title} screenshot ${index + 1}`}
+                            onError={(e) => handleImageError(e, `${movie.title} screenshot ${index + 1}`)}
                             style={{ width: '200px', height: '300px', objectFit: 'cover', borderRadius: '8px' }}
                           />
                         </LazyLoad>
@@ -274,286 +272,206 @@ function MovieDetails() {
                 <ul style={{ listStyle: 'none', padding: 0 }}>
                   <li style={{ margin: '5px 0', fontSize: '1rem' }}>
                     <a href={movie.directLink} target="_blank" rel="noopener noreferrer" style={{ color: '#1a73e8', textDecoration: 'none' }}>
-                      Watch Now on Internet Archive
+                      Watch on Internet Archive
                     </a>
                   </li>
                 </ul>
-              ) : movie.watchProviders?.US?.ads?.length > 0 ? (
-                <ul style={{ listStyle: 'none', padding: 0 }}>
-                  {movie.watchProviders.US.ads.map((provider, index) => (
-                    <li key={index} style={{ margin: '5px 0', fontSize: '1rem' }}>{provider.provider_name}</li>
-                  ))}
-                </ul>
               ) : (
-                <p style={{ fontSize: '1rem' }}>No watch options available.</p>
+                <p style={{ fontSize: '1rem' }}>No direct watch links available.</p>
+              )}
+              {movie.watchProviders?.US?.ads?.length > 0 && (
+                <div className="watch-free">
+                  <h4 style={{ fontSize: '1.2rem', margin: '10px 0' }}>Watch for Free on:</h4>
+                  <ul style={{ listStyle: 'none', padding: 0 }}>
+                    {movie.watchProviders.US.ads.map((provider, index) => (
+                      <li key={index} style={{ margin: '5px 0', fontSize: '1rem' }}>{provider.provider_name}</li>
+                    ))}
+                  </ul>
+                </div>
               )}
             </div>
 
             <div className="reactions" style={{ margin: '20px 0' }}>
               <h2 style={{ fontSize: '1.8rem', fontWeight: 600, color: '#333', marginBottom: '10px', transition: 'font-size 0.3s ease' }}>Reactions</h2>
-              <div className="reaction-buttons" style={{ display: 'flex', flexWrap: 'wrap', gap: '10px', justifyContent: 'center' }}>
-                {Object.keys(reactionCounts).map((reaction) => (
+              <div className="reaction-buttons" style={{ display: 'flex', gap: '10px', flexWrap: 'wrap', justifyContent: 'center' }}>
+                {['excellent', 'good', 'average', 'sad'].map((reaction) => (
                   <button
                     key={reaction}
-                    className="reaction-btn"
+                    className="cta-button"
                     onClick={() => handleReaction(reaction)}
-                    aria-label={`React with ${reaction}`}
-                    style={{ margin: '0 5px', padding: '5px 10px', fontSize: '14px', border: '1px solid #ccc', borderRadius: '5px', background: '#f0f0f0', cursor: 'pointer', transition: 'background 0.3s ease' }}
+                    disabled={reactionCounts[reaction] > 0}
+                    aria-label={`React with ${reaction} to ${movie.title}`}
+                    style={{
+                      fontSize: '0.9rem',
+                      padding: '8px 12px',
+                      opacity: reactionCounts[reaction] > 0 ? 0.6 : 1,
+                    }}
                   >
-                    {reaction.charAt(0).toUpperCase() + reaction.slice(1)} ({reactionCounts[reaction]})
+                    {{
+                      excellent: 'Excellent 👍',
+                      good: 'Good 😊',
+                      average: 'Average 😐',
+                      sad: 'Sad 😢'
+                    }[reaction]} ({reactionCounts[reaction] || 0})
                   </button>
                 ))}
               </div>
             </div>
 
-            <div className="hero-buttons" style={{ display: 'flex', flexWrap: 'wrap', gap: '10px', justifyContent: 'center', margin: '20px 0' }}>
+            <div className="actions" style={{ margin: '20px 0', display: 'flex', gap: '10px', justifyContent: 'center' }}>
               {movie.trailer && movie.trailer !== 'N/A' && (
                 <button
-                  className="cta-button hero-button play-trailer"
+                  className="cta-button"
                   onClick={() => openTrailerModal(movie.trailer)}
+                  style={{ padding: '10px 20px', fontSize: '1rem' }}
                   aria-label={`Play trailer for ${movie.title}`}
-                  style={{ padding: '10px 20px', fontSize: '1rem', background: '#1a73e8', color: 'white', border: 'none', borderRadius: '5px', cursor: 'pointer', transition: 'background 0.3s ease' }}
                 >
                   Play Trailer
                 </button>
               )}
-              {watchlist.some((m) => m.externalId === externalId && m.source === source) ? (
+              {watchlist.some((m) => m.externalId === movie.externalId && m.source === movie.source) ? (
                 <button
-                  className="cta-button hero-button"
-                  onClick={() => handleRemoveFromWatchlist(externalId, source)}
+                  className="cta-button"
+                  onClick={() => handleRemoveFromWatchlist(movie.externalId, movie.source)}
+                  style={{ padding: '10px 20px', fontSize: '1rem' }}
                   aria-label={`Remove ${movie.title} from watchlist`}
-                  style={{ padding: '10px 20px', fontSize: '1rem', background: '#1a73e8', color: 'white', border: 'none', borderRadius: '5px', cursor: 'pointer', transition: 'background 0.3s ease' }}
                 >
                   Remove from Watchlist
                 </button>
               ) : (
                 <button
-                  className="cta-button hero-button"
+                  className="cta-button"
                   onClick={() => handleAddToWatchlist(movie)}
+                  style={{ padding: '10px 20px', fontSize: '1rem' }}
                   aria-label={`Add ${movie.title} to watchlist`}
-                  style={{ padding: '10px 20px', fontSize: '1rem', background: '#1a73e8', color: 'white', border: 'none', borderRadius: '5px', cursor: 'pointer', transition: 'background 0.3s ease' }}
                 >
                   Add to Watchlist
                 </button>
               )}
             </div>
 
+            <div className="movie-info" style={{ margin: '20px 0', fontSize: '1rem', lineHeight: '1.5' }}>
+              <p><strong>IMDb Rating:</strong> {movie.imdbRating || 'N/A'}</p>
+              <p><strong>Release Date:</strong> {movie.releaseDate || 'N/A'}</p>
+              <p><strong>Genres:</strong> {movie.genres || 'N/A'}</p>
+              <p><strong>Director:</strong> {movie.director || 'N/A'}</p>
+              <p><strong>Cast:</strong> {movie.cast?.join(', ') || 'N/A'}</p>
+              <p><strong>Runtime:</strong> {movie.runtime || 'N/A'}</p>
+              <p><strong>Budget:</strong> {movie.budget || 'N/A'}</p>
+              <p><strong>Revenue:</strong> {movie.revenue || 'N/A'}</p>
+              <p><strong>Production Companies:</strong> {movie.productionCompanies?.join(', ') || 'N/A'}</p>
+              <p><strong>Language:</strong> {movie.language || 'N/A'}</p>
+              <p><strong>Country:</strong> {movie.country || 'N/A'}</p>
+              <p><strong>Status:</strong> {movie.status || 'N/A'}</p>
+              <p><strong>Tagline:</strong> {movie.tagline || 'N/A'}</p>
+            </div>
+
             <div className="reviews-section" style={{ margin: '20px 0' }}>
-              <h3 style={{ fontSize: '1.6rem', marginBottom: '10px' }}>Reviews</h3>
+              <h2 style={{ fontSize: '1.8rem', fontWeight: 600, color: '#333', marginBottom: '10px', transition: 'font-size 0.3s ease' }}>Reviews</h2>
+              <form onSubmit={handleSubmitReview} style={{ marginBottom: '20px', display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                <input
+                  type="text"
+                  value={reviewName}
+                  onChange={(e) => setReviewName(e.target.value)}
+                  placeholder="Your Name"
+                  style={{ padding: '8px', fontSize: '1rem', borderRadius: '4px', border: '1px solid #ccc' }}
+                  aria-label="Your name for review"
+                />
+                <input
+                  type="email"
+                  value={reviewEmail}
+                  onChange={(e) => setReviewEmail(e.target.value)}
+                  placeholder="Your Email"
+                  style={{ padding: '8px', fontSize: '1rem', borderRadius: '4px', border: '1px solid #ccc' }}
+                  aria-label="Your email for review"
+                />
+                <textarea
+                  value={reviewText}
+                  onChange={(e) => setReviewText(e.target.value)}
+                  placeholder="Write your review..."
+                  style={{ padding: '8px', fontSize: '1rem', borderRadius: '4px', border: '1px solid #ccc', minHeight: '100px', resize: 'vertical' }}
+                  aria-label="Your review text"
+                ></textarea>
+                <button type="submit" className="cta-button" style={{ padding: '10px 20px', fontSize: '1rem' }} aria-label="Submit review">
+                  Submit Review
+                </button>
+              </form>
+              {error && <p style={{ color: 'red', fontSize: '1rem', marginBottom: '10px' }}>{error}</p>}
               {reviews.length > 0 ? (
                 reviews.map((review) => (
-                  <div key={review._id} className="comment-item" style={{ display: 'flex', marginBottom: '15px' }}>
-                    <img
-                      src={review.user?.avatar || 'https://placehold.co/40x40?text=User'}
-                      alt="User avatar"
-                      className="comment-avatar"
-                      style={{ width: '40px', height: '40px', borderRadius: '50%', marginRight: '10px' }}
-                    />
-                    <div className="comment-content" style={{ flex: 1 }}>
-                      <div style={{ display: 'flex', alignItems: 'center', marginBottom: '5px' }}>
-                        <p className="comment-username" style={{ fontWeight: 'bold', margin: '0', marginRight: '5px' }}>
-                          {review.name || 'Anonymous'}
-                        </p>
-                        <span style={{ color: '#666', fontSize: '12px', marginRight: '5px' }}>•</span>
-                        <p className="comment-time" style={{ color: '#666', fontSize: '12px', margin: '0' }}>
-                          {formatTimestamp(review.createdAt)}
-                        </p>
+                  <div key={review._id} className="review" style={{ marginBottom: '20px', padding: '10px', border: '1px solid #eee', borderRadius: '4px' }}>
+                    <p style={{ fontSize: '1rem', fontWeight: 'bold', marginBottom: '5px' }}>{review.name}</p>
+                    <p style={{ fontSize: '0.9rem', color: '#666', marginBottom: '5px' }}>{formatTimestamp(review.createdAt)}</p>
+                    <p style={{ fontSize: '1rem', marginBottom: '10px' }}>{review.text}</p>
+                    {review.replies && review.replies.length > 0 && (
+                      <div className="replies" style={{ marginLeft: '20px', paddingLeft: '10px', borderLeft: '2px solid #eee' }}>
+                        {review.replies.map((reply) => (
+                          <div key={reply._id} style={{ marginBottom: '10px' }}>
+                            <p style={{ fontSize: '0.9rem', fontWeight: 'bold', marginBottom: '5px' }}>{reply.name}</p>
+                            <p style={{ fontSize: '0.8rem', color: '#666', marginBottom: '5px' }}>{formatTimestamp(reply.createdAt)}</p>
+                            <p style={{ fontSize: '0.9rem' }}>{reply.text}</p>
+                          </div>
+                        ))}
                       </div>
-                      <p className="comment-text" style={{ margin: '0 0 5px 0' }}>{review.text}</p>
+                    )}
+                    {!replyingTo || replyingTo !== review._id ? (
                       <button
-                        className="reply-btn"
-                        onClick={() => setReplyingTo(review._id === replyingTo ? null : review._id)}
-                        aria-label={`Reply to ${review.name || 'Anonymous'}`}
-                        style={{ color: '#1a73e8', background: 'none', border: 'none', cursor: 'pointer', padding: '0', fontSize: '14px' }}
+                        className="cta-button"
+                        onClick={() => setReplyingTo(review._id)}
+                        style={{ padding: '8px 12px', fontSize: '0.9rem', marginTop: '10px' }}
+                        aria-label={`Reply to ${review.name}'s review`}
                       >
                         Reply
                       </button>
-                      {replyingTo === review._id && (
-                        <div className="reply-form" style={{ marginTop: '10px', display: 'flex', alignItems: 'center' }}>
-                          <img
-                            src="https://placehold.co/40x40?text=User"
-                            alt="User avatar"
-                            style={{ width: '40px', height: '40px', borderRadius: '50%', marginRight: '10px' }}
-                          />
-                          <div style={{ flex: 1 }}>
-                            <input
-                              type="text"
-                              value={replyName}
-                              onChange={(e) => setReplyName(e.target.value)}
-                              placeholder="Your name..."
-                              aria-label="Reply name"
-                              style={{ width: '100%', marginBottom: '5px', padding: '5px' }}
-                            />
-                            <input
-                              type="email"
-                              value={replyEmail}
-                              onChange={(e) => setReplyEmail(e.target.value)}
-                              placeholder="Your email..."
-                              aria-label="Reply email"
-                              style={{ width: '100%', marginBottom: '5px', padding: '5px' }}
-                            />
-                            <input
-                              type="text"
-                              value={replyText}
-                              onChange={(e) => setReplyText(e.target.value)}
-                              placeholder="Write a reply..."
-                              aria-label="Reply text"
-                              style={{ width: '100%', marginBottom: '5px', padding: '5px' }}
-                            />
-                            <button
-                              className="cta-button"
-                              onClick={() => handleReply(review._id)}
-                              aria-label="Submit reply"
-                              style={{ padding: '5px 10px', fontSize: '14px' }}
-                            >
-                              Submit Reply
-                            </button>
-                          </div>
+                    ) : (
+                      <form onSubmit={() => handleReply(review._id)} style={{ marginTop: '10px', display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                        <input
+                          type="text"
+                          value={replyName}
+                          onChange={(e) => setReplyName(e.target.value)}
+                          placeholder="Your Name"
+                          style={{ padding: '8px', fontSize: '0.9rem', borderRadius: '4px', border: '1px solid #ccc' }}
+                          aria-label="Your name for reply"
+                        />
+                        <input
+                          type="email"
+                          value={replyEmail}
+                          onChange={(e) => setReplyEmail(e.target.value)}
+                          placeholder="Your Email"
+                          style={{ padding: '8px', fontSize: '0.9rem', borderRadius: '4px', border: '1px solid #ccc' }}
+                          aria-label="Your email for reply"
+                        />
+                        <textarea
+                          value={replyText}
+                          onChange={(e) => setReplyText(e.target.value)}
+                          placeholder="Write your reply..."
+                          style={{ padding: '8px', fontSize: '0.9rem', borderRadius: '4px', border: '1px solid #ccc', minHeight: '80px', resize: 'vertical' }}
+                          aria-label="Your reply text"
+                        ></textarea>
+                        <div style={{ display: 'flex', gap: '10px' }}>
+                          <button type="submit" className="cta-button" style={{ padding: '8px 12px', fontSize: '0.9rem' }} aria-label="Submit reply">
+                            Submit Reply
+                          </button>
+                          <button
+                            className="cta-button"
+                            onClick={() => setReplyingTo(null)}
+                            style={{ padding: '8px 12px', fontSize: '0.9rem', background: '#ccc' }}
+                            aria-label="Cancel reply"
+                          >
+                            Cancel
+                          </button>
                         </div>
-                      )}
-                      {review.replies?.length > 0 && (
-                        <div className="replies-container" style={{ marginTop: '10px', marginLeft: '50px' }}>
-                          {review.replies.map((reply) => (
-                            <div key={reply._id} className="reply-item" style={{ display: 'flex', marginBottom: '10px' }}>
-                              <img
-                                src={reply.user?.avatar || 'https://placehold.co/30x30?text=User'}
-                                alt="User avatar"
-                                className="comment-avatar"
-                                style={{ width: '30px', height: '30px', borderRadius: '50%', marginRight: '10px' }}
-                              />
-                              <div className="comment-content" style={{ flex: 1 }}>
-                                <div style={{ display: 'flex', alignItems: 'center', marginBottom: '5px' }}>
-                                  <p className="comment-username" style={{ fontWeight: 'bold', margin: '0', marginRight: '5px' }}>
-                                    {reply.name || 'Anonymous'}
-                                  </p>
-                                  <span style={{ color: '#666', fontSize: '12px', marginRight: '5px' }}>•</span>
-                                  <p className="comment-time" style={{ color: '#666', fontSize: '12px', margin: '0' }}>
-                                    {formatTimestamp(reply.createdAt)}
-                                  </p>
-                                </div>
-                                <p className="comment-text" style={{ margin: '0' }}>{reply.text}</p>
-                              </div>
-                            </div>
-                          ))}
-                        </div>
-                      )}
-                    </div>
+                      </form>
+                    )}
                   </div>
                 ))
               ) : (
-                <p style={{ fontSize: '1rem' }}>No reviews yet. Be the first to review!</p>
+                <p style={{ fontSize: '1rem' }}>No reviews yet. Be the first to share your thoughts!</p>
               )}
-
-              <div className="review-form" style={{ marginTop: '20px', display: 'flex', alignItems: 'center' }}>
-                <img
-                  src="https://placehold.co/40x40?text=User"
-                  alt="User avatar"
-                  style={{ width: '40px', height: '40px', borderRadius: '50%', marginRight: '10px' }}
-                />
-                <div style={{ flex: 1 }}>
-                  <h4 style={{ margin: '0 0 10px 0' }}>Write a Review</h4>
-                  <input
-                    type="text"
-                    value={reviewName}
-                    onChange={(e) => setReviewName(e.target.value)}
-                    placeholder="Your name..."
-                    aria-label="Review name"
-                    style={{ width: '100%', marginBottom: '5px', padding: '5px' }}
-                  />
-                  <input
-                    type="email"
-                    value={reviewEmail}
-                    onChange={(e) => setReviewEmail(e.target.value)}
-                    placeholder="Your email..."
-                    aria-label="Review email"
-                    style={{ width: '100%', marginBottom: '5px', padding: '5px' }}
-                  />
-                  <input
-                    type="text"
-                    value={reviewText}
-                    onChange={(e) => setReviewText(e.target.value)}
-                    placeholder="Write your review..."
-                    aria-label="Review text"
-                    style={{ width: '100%', marginBottom: '5px', padding: '5px' }}
-                  />
-                  <button
-                    className="cta-button"
-                    onClick={handleSubmitReview}
-                    aria-label="Submit review"
-                    style={{ padding: '5px 10px', fontSize: '14px' }}
-                  >
-                    Submit Review
-                  </button>
-                  {error && <p className="error-message" style={{ color: 'red', marginTop: '5px', fontSize: '0.9rem' }}>{error}</p>}
-                </div>
-              </div>
             </div>
           </>
         )}
       </div>
-
-      <footer className="details-footer" style={{ textAlign: 'center', padding: '20px 0', borderTop: '1px solid #ccc', marginTop: '20px' }}>
-        <p style={{ fontSize: '0.9rem' }}>© 2025 MovieVerse. All rights reserved.</p>
-        <div className="footer-links" style={{ display: 'flex', justifyContent: 'center', gap: '15px' }}>
-          <Link to="/" style={{ color: '#1a73e8', textDecoration: 'none', fontSize: '0.9rem' }}>Home</Link>
-          <Link to="/privacy" style={{ color: '#1a73e8', textDecoration: 'none', fontSize: '0.9rem' }}>Privacy</Link>
-          <Link to="/terms" style={{ color: '#1a73e8', textDecoration: 'none', fontSize: '0.9rem' }}>Terms</Link>
-        </div>
-      </footer>
-
-      <style>
-        {`
-          @media (max-width: 1024px) {
-            .movie-details { padding: 15px; }
-            .logo { font-size: 2rem; margin: 8px 0; }
-            .details-header { padding: 8px 15px; }
-            .movie-content h1 { font-size: 1.8rem; }
-            .category-section h2 { font-size: 1.5rem; margin: 15px 0; }
-            .movie-poster img { max-width: 250px; }
-            .storyline h2, .download-links h2, .reactions h2 { font-size: 1.5rem; }
-            .reviews-section h3 { font-size: 1.4rem; }
-            .cta-button { padding: 8px 15px; font-size: 0.9rem; }
-          }
-          @media (max-width: 768px) {
-            .movie-details { padding: 10px; }
-            .logo { font-size: 1.5rem; margin: 5px 0; }
-            .details-header { padding: 5px 10px; flex-direction: column; align-items: flex-start; }
-            .movie-content h1 { font-size: 1.5rem; text-align: left; margin: 15px 0; }
-            .category-section h2 { font-size: 1.3rem; margin: 10px 0; }
-            .movie-poster img { max-width: 200px; }
-            .storyline h2, .download-links h2, .reactions h2 { font-size: 1.3rem; }
-            .storyline p, .download-links li { font-size: 0.9rem; }
-            .reactions { text-align: center; }
-            .reaction-buttons { gap: 8px; }
-            .reaction-btn { font-size: 0.8rem; padding: 4px 8px; }
-            .hero-buttons { gap: 8px; }
-            .cta-button { padding: 6px 12px; font-size: 0.8rem; }
-            .reviews-section h3 { font-size: 1.2rem; }
-            .comment-avatar { width: 30px; height: 30px; }
-            .replies-container { margin-left: 30px; }
-            .comment-username, .comment-text, .reply-btn { font-size: 0.9rem; }
-            .comment-time { font-size: 0.7rem; }
-            .review-form input, .reply-form input { padding: 4px; font-size: 0.9rem; }
-          }
-          @media (max-width: 480px) {
-            .movie-details { padding: 5px; }
-            .logo { font-size: 1.2rem; }
-            .details-header { padding: 5px; }
-            .movie-content h1 { font-size: 1.2rem; margin: 10px 0; }
-            .category-section h2 { font-size: 1.1rem; margin: 8px 0; }
-            .movie-poster img { max-width: 150px; }
-            .storyline h2, .download-links h2, .reactions h2 { font-size: 1.1rem; }
-            .storyline p, .download-links li { font-size: 0.8rem; }
-            .reaction-btn { font-size: 0.7rem; padding: 3px 6px; }
-            .cta-button { padding: 5px 10px; font-size: 0.7rem; }
-            .reviews-section h3 { font-size: 1rem; }
-            .comment-avatar { width: 25px; height: 25px; }
-            .replies-container { margin-left: 20px; }
-            .review-form, .reply-form { flex-direction: column; align-items: flex-start; }
-            .review-form img, .reply-form img { margin-bottom: 10px; }
-          }
-        `}
-      </style>
     </div>
   );
 }
