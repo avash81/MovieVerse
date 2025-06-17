@@ -138,10 +138,10 @@ const getMovieDetails = async (req, res) => {
         : 'N/A',
       status: tmdbMovie.status || 'N/A',
       tagline: tmdbMovie.tagline || 'N/A',
-      trailer: tmdbMovie.videos?.results?.find((v) => v.type === 'Trailer')?.key
-        ? `https://www.youtube.com/watch?v=${
-            tmdbMovie.videos.results.find((v) => v.type === 'Trailer').key
-          }`
+      trailer: tmdbMovie.videos?.results?.find((v) => v.official && v.type === 'Trailer' && v.site === 'YouTube')?.key
+        ? `https://www.youtube.com/watch?v=${tmdbMovie.videos.results.find((v) => v.official && v.type === 'Trailer' && v.site === 'YouTube').key}`
+        : tmdbMovie.videos?.results?.find((v) => v.type === 'Trailer' && v.site === 'YouTube')?.key
+        ? `https://www.youtube.com/watch?v=${tmdbMovie.videos.results.find((v) => v.type === 'Trailer' && v.site === 'YouTube').key}`
         : 'N/A',
       watchProviders: tmdbMovie['watch/providers']?.results || {},
       reactionCounts: { excellent: 0, good: 0, average: 0, sad: 0 },

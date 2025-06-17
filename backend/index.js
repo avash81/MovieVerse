@@ -22,7 +22,7 @@ console.log('Environment variables loaded:', {
 const app = express();
 
 // Middleware
-app.use(cors({ origin: 'http://localhost:3000' }));
+app.use(cors({ origin: ['http://localhost:3000', 'http://localhost:5173'] })); // Ensure this matches your frontend dev server ports
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use((req, res, next) => {
@@ -89,7 +89,7 @@ app.get('*', (req, res) => {
   }
 });
 
-const PORT = process.env.PORT || 5001;
+const PORT = process.env.PORT || 5001; // Note: Ensure this matches the port expected by the frontend (movieApi.js likely expects 5001)
 
 const startServer = async () => {
   try {

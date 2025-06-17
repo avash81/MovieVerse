@@ -7,8 +7,13 @@ const reviewSchema = new mongoose.Schema({
   name: { type: String, required: true },
   email: { type: String, required: true },
   createdAt: { type: Date, default: Date.now },
-  replies: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Review' }],
-  rating: { type: Number, required: true, min: 1, max: 10 } // New rating field
+  replies: [{
+    text: { type: String, required: true },
+    name: { type: String, required: true },
+    email: { type: String, required: true },
+    createdAt: { type: Date, default: Date.now }
+  }],
+  rating: { type: Number, required: true, min: 1, max: 10 }
 });
 
 module.exports = mongoose.model('Review', reviewSchema);
