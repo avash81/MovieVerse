@@ -1,0 +1,19 @@
+User-agent: *
+Allow: /
+
+# Sitemaps
+Sitemap: https://hdhub4u.example.com/sitemaps/sitemap-main.xml
+Sitemap: https://hdhub4u.example.com/sitemaps/sitemap-movies-1.xml
+Sitemap: https://hdhub4u.example.com/sitemaps/sitemap-genres.xml
+Sitemap: https://hdhub4u.example.com/sitemaps/sitemap-years.xml
+Sitemap: https://hdhub4u.example.com/sitemaps/sitemap-actors.xml
+Sitemap: https://hdhub4u.example.com/sitemaps/sitemap-genre-year-1.xml
+
+# Block admin areas
+Disallow: /admin/
+Disallow: /api/
+Disallow: /auto-pilot/
+Disallow: /ai-automation/
+Disallow: /task-automation/
+
+Crawl-delay: 1

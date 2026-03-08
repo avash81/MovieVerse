@@ -1,0 +1,13 @@
+{
+  "recommendations": [
+    "formulahendry.auto-rename-tag",
+    "ms-vscode.vscode-typescript-next",
+    "bradlc.vscode-tailwindcss",
+    "esbenp.prettier-vscode",
+    "ms-vscode.vscode-json",
+    "gruntfuggly.todo-tree",
+    "ms-vscode.powershell",
+    "ms-vscode.vscode-bash",
+    "humao.rest-client"
+  ]
+}

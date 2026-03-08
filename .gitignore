@@ -3,10 +3,9 @@ backend/node_modules/
 frontend/dist/
 backend/dist/
 frontend/.env
-backend/.env
+# backend/.env
 .env
 .env.prod
 .DS_Store
 .vscode/
-
 frontend/build/

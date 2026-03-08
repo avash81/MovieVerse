@@ -1,0 +1,61 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "Auto-Start Development",
+      "type": "shell",
+      "command": "node",
+      "args": ["auto-runner.js"],
+      "group": "build",
+      "presentation": {
+        "echo": true,
+        "reveal": "always",
+        "focus": false,
+        "panel": "shared"
+      },
+      "problemMatcher": []
+    },
+    {
+      "label": "Auto-Fix Issues",
+      "type": "shell",
+      "command": "node",
+      "args": ["-e", "require('./auto-runner.js').then(runner => runner.quickFix())"],
+      "group": "build",
+      "presentation": {
+        "echo": true,
+        "reveal": "always",
+        "focus": false,
+        "panel": "shared"
+      },
+      "problemMatcher": []
+    },
+    {
+      "label": "Auto-Restart Backend",
+      "type": "shell",
+      "command": "node",
+      "args": ["-e", "require('child_process').exec('taskkill /F /IM node.exe', () => setTimeout(() => require('child_process').exec('cd backend && npm start'), 2000))"],
+      "group": "build",
+      "presentation": {
+        "echo": true,
+        "reveal": "always",
+        "focus": false,
+        "panel": "shared"
+      },
+      "problemMatcher": []
+    },
+    {
+      "label": "Auto-Install Dependencies",
+      "type": "shell",
+      "command": "node",
+      "args": ["-e", "require('child_process').exec('npm install', { cwd: process.cwd() + '/backend' }); require('child_process').exec('npm install', { cwd: process.cwd() + '/frontend' })"],
+      "group": "build",
+      "presentation": {
+        "echo": true,
+        "reveal": "always",
+        "focus": false,
+        "panel": "shared"
+      },
+      "problemMatcher": []
+    }
+  ]
+}
